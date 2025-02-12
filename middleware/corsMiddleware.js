@@ -8,22 +8,10 @@ const corsMiddleware = (req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   }
-
-  // Allow credentials
-  res.header('Access-Control-Allow-Credentials', 'true');
-
-  // Allow specific headers - include X-Forwarded-Proto
-  res.header(
-    'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Forwarded-Proto'
-  );
-
-  // Allow specific methods
-  res.header(
-    'Access-Control-Allow-Methods',
-    'GET, POST, PUT, DELETE, OPTIONS'
-  );
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
