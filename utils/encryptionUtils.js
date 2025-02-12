@@ -1,6 +1,8 @@
 import CryptoJS from 'crypto-js';
 import crypto from 'crypto';
 
+const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
+
 // Generate a random encryption key
 export const generateEncryptionKey = () => {
   return crypto.randomBytes(32).toString('hex');
@@ -85,53 +87,62 @@ export const decryptFile = (encryptedData, secretKey) => {
 // Encrypt for IPFS
 export const encryptForIPFS = (data, key) => {
   try {
-    // Convert data to string if it's an object
-    const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
+    // Convert the key from hex to bytes
+    const keyBuffer = Buffer.from(key, 'hex');
     
-    // Convert the hex key to bytes
-    const keyBytes = Buffer.from(key, 'hex');
-    
-    // Generate IV
+    // Generate a random IV
     const iv = crypto.randomBytes(16);
     
     // Create cipher
-    const cipher = crypto.createCipheriv('aes-256-cbc', keyBytes, iv);
+    const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, keyBuffer, iv);
+    
+    // Convert data to string if it's an object
+    const jsonString = typeof data === 'string' ? data : JSON.stringify(data);
     
     // Encrypt the data
-    let encryptedData = cipher.update(dataString, 'utf8', 'base64');
-    encryptedData += cipher.final('base64');
+    let encrypted = cipher.update(jsonString, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
     
+    // Return both the IV and encrypted data
     return {
-      iv: iv.toString('base64'),
-      encryptedData: encryptedData
+      iv: iv.toString('hex'),
+      encryptedData: encrypted,
+      timestamp: Date.now()
     };
   } catch (error) {
-    console.error('IPFS encryption error:', error);
-    throw new Error('Failed to encrypt for IPFS');
+    console.error('Encryption error:', error);
+    throw new Error('Failed to encrypt data');
   }
 };
 
 // Decrypt data from IPFS
-export const decryptFromIPFS = (encryptedObject, key) => {
+export const decryptFromIPFS = async (encryptedData, key) => {
   try {
-    // Convert the hex key to bytes
-    const keyBytes = Buffer.from(key, 'hex');
+    if (!encryptedData || !key) {
+      throw new Error('Missing encrypted data or key');
+    }
+
+    // Convert the key from hex to bytes
+    const keyBuffer = Buffer.from(key, 'hex');
     
-    // Convert base64 IV back to buffer
-    const iv = Buffer.from(encryptedObject.iv, 'base64');
+    // Extract IV and encrypted content
+    const { iv, encryptedContent } = encryptedData;
+    
+    // Convert IV from hex
+    const ivBuffer = Buffer.from(iv, 'hex');
     
     // Create decipher
-    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBytes, iv);
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, keyBuffer, ivBuffer);
     
     // Decrypt the data
-    let decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
+    let decrypted = decipher.update(encryptedContent, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
     
     // Parse the decrypted JSON
     return JSON.parse(decrypted);
   } catch (error) {
-    console.error('IPFS decryption error:', error);
-    throw new Error('Failed to decrypt IPFS data');
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt data');
   }
 };
 

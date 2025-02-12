@@ -34,72 +34,47 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 
 // Enhanced exam start with validation
 const startExam = asyncHandler(async (req, res) => {
-  const { ipfsHash } = req.body;
-
   try {
+    const { ipfsHash, encryptionKey } = req.body;
+
+    if (!ipfsHash || !encryptionKey) {
+      res.status(400);
+      throw new Error('IPFS hash and encryption key are required');
+    }
+
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Add timeout and retry logic for IPFS fetches
-    const fetchWithRetry = async (retries = 3) => {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const response = await axios.get(
-            `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
-            { 
-              timeout: 10000,
-              headers: {
-                'Authorization': `Bearer ${process.env.PINATA_JWT}`
-              }
-            }
-          );
-          return response.data;
-        } catch (error) {
-          if (i === retries - 1) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
-      }
-    };
-
-    const encryptedData = await fetchWithRetry();
-
-    if (!encryptedData || !encryptedData.iv || !encryptedData.encryptedData) {
-      throw new Error('Invalid data format from IPFS');
+    // Fetch data from IPFS
+    const ipfsResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
+    
+    if (!ipfsResponse.data) {
+      throw new Error('Failed to fetch exam data from IPFS');
     }
 
     logger.info('Decrypting exam data...');
-    // Decrypt the exam data using the stored IPFS encryption key
-    const decryptedData = decryptFromIPFS(encryptedData, req.user.ipfsEncryptionKey);
     
+    // Decrypt the exam data
+    const decryptedData = await decryptFromIPFS(ipfsResponse.data, encryptionKey);
+
     if (!decryptedData || !decryptedData.questions) {
-      throw new Error('Invalid exam data structure');
+      throw new Error('Invalid exam data format');
     }
 
-    // Validate questions format
-    if (!Array.isArray(decryptedData.questions)) {
-      throw new Error('Invalid questions format');
-    }
-
-    logger.info('Preparing exam data for student...');
-    // Return exam data without correct answers
-    const sanitizedQuestions = decryptedData.questions.map(q => ({
-      text: q.question,
-      options: q.options
-    }));
-
+    // Return only necessary data for the exam
     res.json({
-      _id: req.user.exam._id,
-      examName: req.user.exam.examName,
-      timeLimit: req.user.exam.timeLimit,
-      totalQuestions: req.user.exam.totalQuestions,
-      questions: sanitizedQuestions
+      examName: decryptedData.examName,
+      questions: decryptedData.questions.map(q => ({
+        question: q.question,
+        options: q.options
+      })),
+      totalQuestions: decryptedData.totalQuestions,
+      timeLimit: decryptedData.timeLimit || 60 // default 60 minutes if not specified
     });
 
   } catch (error) {
     logger.error('Exam start error:', error);
-    res.status(500).json({
-      message: 'Failed to start exam',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    res.status(500);
+    throw new Error(error.message || 'Failed to start exam');
   }
 });
 
