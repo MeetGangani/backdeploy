@@ -6,7 +6,7 @@ import {
   getUserProfile,
   updateUserProfile,
   googleAuth,
-  googleAuthCallback,
+  googleCallback,
 } from '../controllers/userController.js';
 import { protect, adminOnly, instituteOnly } from '../middleware/authMiddleware.js';
 import passport from 'passport';
@@ -41,7 +41,7 @@ router.get('/auth/google/callback',
     failureRedirect: 'http://localhost:3000/login',
     session: false 
   }),
-  googleAuthCallback
+  googleCallback
 );
 
 export default router;

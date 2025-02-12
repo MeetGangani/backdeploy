@@ -61,12 +61,14 @@ const googleAuth = passport.authenticate('google', {
 
 const googleCallback = async (req, res) => {
   try {
-    // After successful authentication
     const frontendURL = process.env.NODE_ENV === 'production'
       ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
       : 'http://localhost:3000';
 
     if (req.user) {
+      // Generate token for the authenticated user
+      generateToken(res, req.user._id);
+      
       // Authentication successful
       res.redirect(`${frontendURL}/register?loginSuccess=true`);
     } else {
