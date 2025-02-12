@@ -3,28 +3,15 @@ import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
 
 const protect = asyncHandler(async (req, res, next) => {
-  let token;
-
-  token = req.cookies.jwt;
+  const token = req.cookies.jwt;
 
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
       req.user = await User.findById(decoded.userId).select('-password');
-
-      // Add CORS headers for authenticated requests
-      res.header('Access-Control-Allow-Credentials', 'true');
-      if (process.env.NODE_ENV === 'production') {
-        res.header(
-          'Access-Control-Allow-Origin', 
-          'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
-        );
-      }
-
       next();
     } catch (error) {
-      console.error(error);
+      console.error('Token verification failed:', error);
       res.status(401);
       throw new Error('Not authorized, token failed');
     }

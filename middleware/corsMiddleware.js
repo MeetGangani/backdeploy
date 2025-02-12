@@ -2,7 +2,6 @@ const corsMiddleware = (req, res, next) => {
   // Allow requests from your Vercel frontend in production
   const allowedOrigins = [
     'https://nexusedu-jade.vercel.app', // New Vercel URL
-    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app', // Old URL (can be removed)
     'http://localhost:3000'
   ];
 
@@ -13,7 +12,7 @@ const corsMiddleware = (req, res, next) => {
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header(
       'Access-Control-Allow-Headers',
-      'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization, Set-Cookie'
     );
   }
 
