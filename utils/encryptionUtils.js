@@ -85,19 +85,11 @@ export const decryptFile = (encryptedData, secretKey) => {
 // Encrypt for IPFS
 export const encryptForIPFS = (data, key) => {
   try {
-    // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
-    
-    // Convert the hex key to bytes
     const keyBytes = Buffer.from(key, 'hex');
-    
-    // Generate IV
     const iv = crypto.randomBytes(16);
-    
-    // Create cipher
     const cipher = crypto.createCipheriv('aes-256-cbc', keyBytes, iv);
     
-    // Encrypt the data
     let encryptedData = cipher.update(dataString, 'utf8', 'base64');
     encryptedData += cipher.final('base64');
     
@@ -119,51 +111,28 @@ export const decryptFromIPFS = async (encryptedData, key) => {
       throw new Error('Missing encrypted data or key');
     }
 
-    // Log received data for debugging
-    console.log('Received encrypted data:', encryptedData);
-
-    // Convert the hex key to bytes
     const keyBytes = Buffer.from(key, 'hex');
-    
-    // Convert base64 IV back to buffer
     const iv = Buffer.from(encryptedData.iv, 'base64');
-    
-    // Create decipher with aes-256-cbc (same as encryption)
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBytes, iv);
     
-    // Decrypt the data from base64 (same format as encryption)
     let decrypted = decipher.update(encryptedData.encryptedData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
 
-    // Parse the decrypted JSON
-    const parsedData = JSON.parse(decrypted);
-    console.log('Successfully decrypted data:', parsedData);
-
-    return parsedData;
+    return JSON.parse(decrypted);
   } catch (error) {
     console.error('IPFS decryption error:', error);
     throw new Error(`Failed to decrypt IPFS data: ${error.message}`);
   }
 };
 
-// Process file function with binary support
+// Process file function
 export const processFile = (buffer) => {
   try {
-    // Generate encryption key
     const encryptionKey = generateEncryptionKey();
-    
-    // Encrypt the binary data
     const encrypted = encryptFile(buffer, encryptionKey);
-    
     return { encrypted, encryptionKey };
   } catch (error) {
     console.error('File processing error:', error);
     throw new Error('Failed to process file');
   }
-};
-
-// Single export statement for all functions
-export {
-  jsonToBinary,
-  binaryToJson
 };
