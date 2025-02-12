@@ -1,7 +1,7 @@
 const corsMiddleware = (req, res, next) => {
   // Allow requests from your Vercel frontend in production
   const allowedOrigins = [
-    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
+    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app', // Your Vercel URL
     'http://localhost:3000'
   ];
 
