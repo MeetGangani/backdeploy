@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import axios from 'axios';
 import FormData from 'form-data';
 import FileRequest from '../models/fileRequestModel.js';
-import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
+import { encryptFile, generateEncryptionKey, jsonToBinary, processFile } from '../utils/encryptionUtils.js';
 
 // Utility function to process and encrypt file
 const processFile = (buffer) => {
@@ -44,83 +44,48 @@ const validateQuestionFormat = (questions) => {
 // @access  Institute Only
 const uploadFile = asyncHandler(async (req, res) => {
   try {
-    if (!req.file) {
-      res.status(400);
-      throw new Error('No file uploaded');
-    }
+    const { examName, description, questions, totalQuestions, timeLimit } = req.body;
 
-    // Parse and validate JSON content
-    let jsonContent;
-    try {
-      jsonContent = JSON.parse(req.file.buffer.toString());
-      validateQuestionFormat(jsonContent.questions);
-    } catch (error) {
-      res.status(400);
-      throw new Error(`Invalid JSON file: ${error.message}`);
-    }
-
-    // Process the file and get encrypted binary data
-    const { encrypted, encryptionKey } = processFile(req.file.buffer);
-    const ipfsEncryptionKey = generateEncryptionKey();
-
-    // Add retry logic for Pinata uploads
-    const uploadToPinata = async (retries = 3) => {
-      for (let i = 0; i < retries; i++) {
-        try {
-          const formData = new FormData();
-          formData.append('file', req.file.buffer);
-          
-          const response = await axios.post(
-            'https://api.pinata.cloud/pinning/pinFileToIPFS',
-            formData,
-            {
-              headers: {
-                'Authorization': `Bearer ${process.env.PINATA_JWT}`,
-                ...formData.getHeaders()
-              },
-              timeout: 30000 // 30 second timeout
-            }
-          );
-          
-          return response.data.IpfsHash;
-        } catch (error) {
-          if (i === retries - 1) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
-        }
-      }
+    // Convert exam data to binary
+    const examData = {
+      examName,
+      description,
+      questions,
+      totalQuestions,
+      timeLimit
     };
+    const binaryData = jsonToBinary(examData);
 
-    const ipfsHash = await uploadToPinata();
+    // Process file (encrypt for initial storage)
+    const { encrypted: encryptedData, encryptionKey } = processFile(binaryData);
 
-    // Create file request with encrypted binary data
+    // Create file request
     const fileRequest = await FileRequest.create({
       institute: req.user._id,
-      examName: req.body.examName,
-      description: req.body.description,
-      encryptedData: encrypted,
-      encryptionKey: encryptionKey,
-      ipfsEncryptionKey: ipfsEncryptionKey,
-      totalQuestions: jsonContent.questions.length,
-      status: 'pending',
+      examName,
+      description,
+      encryptedData,
+      encryptionKey,
+      totalQuestions,
+      timeLimit,
+      questions,
       submittedBy: req.user._id,
-      timeLimit: parseInt(req.body.timeLimit) || 60,
-      ipfsHash: ipfsHash
+      status: 'pending'
     });
 
     res.status(201).json({
       message: 'File uploaded successfully',
-      requestId: fileRequest._id,
-      examName: fileRequest.examName,
-      totalQuestions: fileRequest.totalQuestions,
-      status: fileRequest.status
+      fileRequest: {
+        _id: fileRequest._id,
+        examName: fileRequest.examName,
+        status: fileRequest.status
+      }
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ 
-      message: 'Failed to upload file',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-    });
+    logger.error('File upload error:', error);
+    res.status(500);
+    throw new Error('Failed to upload file');
   }
 });
 

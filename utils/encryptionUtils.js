@@ -7,12 +7,12 @@ export const generateEncryptionKey = () => {
 };
 
 // Convert JSON to binary buffer
-const jsonToBinary = (jsonData) => {
+export const jsonToBinary = (jsonData) => {
   return Buffer.from(JSON.stringify(jsonData));
 };
 
 // Convert binary to JSON
-const binaryToJson = (buffer) => {
+export const binaryToJson = (buffer) => {
   return JSON.parse(buffer.toString());
 };
 
@@ -146,17 +146,14 @@ export const decryptFromIPFS = async (encryptedData, key) => {
   }
 };
 
-// Process file function
+// Process file function with binary support
 export const processFile = (buffer) => {
   try {
-    // Parse JSON content
-    const jsonContent = JSON.parse(buffer.toString());
-    
     // Generate encryption key
     const encryptionKey = generateEncryptionKey();
     
-    // Encrypt the JSON data
-    const encrypted = encryptFile(jsonContent, encryptionKey);
+    // Encrypt the binary data
+    const encrypted = encryptFile(buffer, encryptionKey);
     
     return { encrypted, encryptionKey };
   } catch (error) {

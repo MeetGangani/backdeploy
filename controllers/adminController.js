@@ -9,7 +9,7 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import sendEmail from '../utils/emailUtils.js';
-import { encryptForIPFS, generateEncryptionKey, decryptFile } from '../utils/encryptionUtils.js';
+import { encryptForIPFS, generateEncryptionKey, decryptFile, binaryToJson } from '../utils/encryptionUtils.js';
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import Upload from '../models/uploadModel.js';
@@ -83,7 +83,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     }
 
     // Get the request with institute details
-    const request = await Upload.findById(id).populate('institute', 'email name');
+    const request = await FileRequest.findById(id).populate('institute', 'email name');
     if (!request) {
       res.status(404);
       throw new Error('Request not found');
@@ -93,36 +93,39 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       try {
         logger.info(`Processing approval for exam ${request.examName}`);
 
-        // Generate encryption key
-        const encryptionKey = generateEncryptionKey();
-        
-        // Prepare data for encryption
-        const examData = {
-          examName: request.examName,
-          questions: request.questions,
-          totalQuestions: request.totalQuestions,
+        // Convert stored binary data back to JSON
+        const decryptedData = decryptFile(request.encryptedData, request.encryptionKey);
+        const examData = binaryToJson(decryptedData);
+
+        // Generate new encryption key for IPFS
+        const ipfsEncryptionKey = generateEncryptionKey();
+
+        // Prepare and encrypt data for IPFS
+        const ipfsData = {
+          examName: examData.examName,
+          questions: examData.questions,
+          totalQuestions: examData.totalQuestions,
+          timeLimit: examData.timeLimit,
           timestamp: Date.now()
         };
 
-        // Encrypt the exam data
-        const encryptedData = encryptForIPFS(examData, encryptionKey);
-        logger.info('Exam data encrypted successfully');
+        const encryptedIPFSData = encryptForIPFS(ipfsData, ipfsEncryptionKey);
 
-        // Prepare data for IPFS
+        // Prepare metadata for IPFS
         const pinataData = {
           pinataOptions: { cidVersion: 1 },
           pinataMetadata: {
-            name: `exam_${request.examName}_${Date.now()}`,
+            name: `exam_${examData.examName}_${Date.now()}`,
             keyvalues: {
               examId: request._id.toString(),
               type: "encrypted_exam",
               timestamp: Date.now().toString()
             }
           },
-          pinataContent: encryptedData
+          pinataContent: encryptedIPFSData
         };
 
-        // Upload to IPFS via Pinata
+        // Upload to IPFS
         const pinataResponse = await axios.post(
           'https://api.pinata.cloud/pinning/pinJSONToIPFS',
           pinataData,
@@ -136,48 +139,41 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
         logger.info('File uploaded to IPFS successfully');
 
-        // Update request with IPFS hash and encryption key
+        // Update request with IPFS data
         request.ipfsHash = pinataResponse.data.IpfsHash;
-        request.encryptionKey = encryptionKey;
-        
+        request.ipfsEncryptionKey = ipfsEncryptionKey;
       } catch (error) {
         logger.error('Error in approval process:', error);
-        res.status(500);
         throw new Error('Failed to process approval: ' + error.message);
       }
     }
 
-    // Update request status and feedback
+    // Update request status
     request.status = status;
-    request.feedback = feedback || '';
+    request.feedback = feedback;
+    request.reviewedBy = req.user._id;
+    request.reviewedAt = Date.now();
+
     const updatedRequest = await request.save();
-    logger.info(`Request ${id} status updated to ${status}`);
 
     // Send email notification
     try {
       const emailContent = examApprovalTemplate({
         instituteName: request.institute.name,
         examName: request.examName,
-        status: status,
-        feedback: feedback || '',
-        ipfsHash: status === 'approved' ? request.ipfsHash : undefined,
-        encryptionKey: status === 'approved' ? request.encryptionKey : undefined
+        status,
+        feedback,
+        ipfsHash: request.ipfsHash,
+        encryptionKey: request.ipfsEncryptionKey
       });
-
-      const emailSubject = status === 'approved' 
-        ? `Exam Request Approved - ${request.examName}`
-        : `Exam Request Rejected - ${request.examName}`;
 
       await sendEmail({
         to: request.institute.email,
-        subject: emailSubject,
+        subject: `Exam Request ${status.toUpperCase()}`,
         html: emailContent
       });
-      
-      logger.info(`Notification email sent to ${request.institute.email} for ${status} status`);
     } catch (emailError) {
       logger.error('Email sending error:', emailError);
-      // Continue even if email fails
     }
 
     res.json({
@@ -193,7 +189,6 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
   } catch (error) {
     logger.error('Update status error:', error);
-    res.status(error.status || 500);
     throw new Error(error.message || 'Failed to update request status');
   }
 });
