@@ -48,12 +48,15 @@ const startExam = asyncHandler(async (req, res) => {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
     // Find the exam in the database using the IPFS hash
-    const exam = await Upload.findOne({ ipfsHash }).select('encryptionKey examName');
+    const exam = await Upload.findOne({ 
+      ipfsHash,
+      status: 'approved' // Only find approved exams
+    }).select('encryptionKey examName timeLimit totalQuestions');
     
     if (!exam) {
-      logger.error('Exam not found for IPFS hash:', ipfsHash);
+      logger.error('Exam not found or not approved for IPFS hash:', ipfsHash);
       return res.status(404).json({
-        message: 'Exam not found'
+        message: 'No approved exam found with this IPFS hash. Please verify the hash with your institute.'
       });
     }
 
@@ -69,14 +72,14 @@ const startExam = asyncHandler(async (req, res) => {
     } catch (ipfsError) {
       logger.error('IPFS fetch error:', ipfsError);
       return res.status(500).json({
-        message: 'Failed to fetch exam data from IPFS'
+        message: 'Unable to fetch exam data. Please try again or contact support.'
       });
     }
 
     if (!ipfsResponse.data) {
       logger.error('No data received from IPFS');
       return res.status(500).json({
-        message: 'No data received from IPFS'
+        message: 'No exam data found. Please contact your institute.'
       });
     }
 
@@ -86,18 +89,19 @@ const startExam = asyncHandler(async (req, res) => {
     // Decrypt using the encryption key from database
     let decryptedData;
     try {
-      decryptedData = await decryptFromIPFS(encryptedData, exam.encryptionKey);
+      // Use the correct encryption key (ipfsEncryptionKey instead of encryptionKey)
+      decryptedData = await decryptFromIPFS(encryptedData, exam.ipfsEncryptionKey);
     } catch (decryptError) {
       logger.error('Decryption error:', decryptError);
       return res.status(500).json({
-        message: 'Failed to decrypt exam data'
+        message: 'Unable to process exam data. Please contact your institute.'
       });
     }
 
     if (!decryptedData || !decryptedData.questions) {
       logger.error('Invalid decrypted data');
       return res.status(500).json({
-        message: 'Invalid exam data format'
+        message: 'Invalid exam format. Please contact your institute.'
       });
     }
 
@@ -107,17 +111,18 @@ const startExam = asyncHandler(async (req, res) => {
       options: q.options
     }));
 
+    // Send exam data to student
     return res.json({
       examName: exam.examName,
       questions: sanitizedQuestions,
-      totalQuestions: decryptedData.totalQuestions,
-      timeLimit: decryptedData.timeLimit || 60
+      totalQuestions: exam.totalQuestions,
+      timeLimit: exam.timeLimit || 60
     });
 
   } catch (error) {
     logger.error('Exam start error:', error);
     return res.status(500).json({
-      message: 'Failed to start exam'
+      message: 'Failed to start exam. Please try again later.'
     });
   }
 });
