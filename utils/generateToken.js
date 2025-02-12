@@ -8,14 +8,15 @@ const generateToken = (res, userId) => {
   // Cookie options
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict', // Allow cross-site cookies in production
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-    domain: process.env.NODE_ENV === 'production' 
-      ? '.vercel.app'  // Update this to match your domain
-      : 'localhost',
-    path: '/'
+    path: '/',
   };
+
+  if (process.env.NODE_ENV === 'production') {
+    cookieOptions.domain = '.onrender.com'; // Match your backend domain
+  }
 
   res.cookie('jwt', token, cookieOptions);
 };

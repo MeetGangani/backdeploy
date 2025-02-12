@@ -4,6 +4,7 @@ import generateToken from '../utils/generateToken.js';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -66,16 +67,16 @@ const googleCallback = async (req, res) => {
       : 'http://localhost:3000';
 
     if (req.user) {
-      // Generate token for the authenticated user
+      // Generate JWT token
       generateToken(res, req.user._id);
       
-      // Authentication successful
+      // Redirect with success
       res.redirect(`${frontendURL}/register?loginSuccess=true`);
     } else {
-      // Authentication failed
       res.redirect(`${frontendURL}/register?error=${encodeURIComponent('Google authentication failed')}`);
     }
   } catch (error) {
+    console.error('Google callback error:', error);
     const frontendURL = process.env.NODE_ENV === 'production'
       ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
       : 'http://localhost:3000';
@@ -200,6 +201,32 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Check user authentication status
+// @route   GET /api/users/check-auth
+// @access  Public
+const checkAuth = asyncHandler(async (req, res) => {
+  try {
+    // Check if user is authenticated via JWT
+    if (req.cookies.jwt) {
+      const decoded = jwt.verify(req.cookies.jwt, process.env.JWT_SECRET);
+      const user = await User.findById(decoded.userId).select('-password');
+      
+      if (user) {
+        return res.json({
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          userType: user.userType,
+        });
+      }
+    }
+    res.status(401).json({ message: 'Not authenticated' });
+  } catch (error) {
+    console.error('Check auth error:', error);
+    res.status(401).json({ message: 'Not authenticated' });
+  }
+});
+
 export {
   authUser,
   registerUser,
@@ -208,4 +235,5 @@ export {
   updateUserProfile,
   googleAuth,
   googleCallback,
+  checkAuth,
 };

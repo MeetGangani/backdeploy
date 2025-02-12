@@ -7,12 +7,12 @@ import {
   updateUserProfile,
   googleAuth,
   googleCallback,
+  checkAuth,
 } from '../controllers/userController.js';
 import { protect, adminOnly, instituteOnly } from '../middleware/authMiddleware.js';
 import passport from 'passport';
 
 const router = express.Router();
-
 
 router.post('/', registerUser);
 router.post('/auth', authUser);
@@ -43,5 +43,8 @@ router.get('/auth/google/callback',
   }),
   googleCallback
 );
+
+// Add check-auth route
+router.get('/check-auth', checkAuth);
 
 export default router;
