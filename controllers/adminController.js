@@ -12,7 +12,8 @@ import sendEmail from '../utils/emailUtils.js';
 import { 
   encryptForIPFS, 
   generateEncryptionKey, 
-  decryptFile
+  decryptFile,
+  processFile
 } from '../utils/encryptionUtils.js';
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
@@ -139,19 +140,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
     if (status === 'approved') {
       try {
-        // Upload to IPFS only if approving
-        const { ipfsHash, encryptionKey } = await uploadEncryptedToPinata({
-          questions: request.questions,
-          examName: request.examName,
-          totalQuestions: request.totalQuestions
-        });
-
-        request.ipfsHash = ipfsHash;
+        // Process and encrypt file using existing utility
+        const { encrypted: encryptedData, encryptionKey } = await processFile(request.file.data);
+        request.encryptedData = encryptedData;
         request.encryptionKey = encryptionKey;
-      } catch (ipfsError) {
-        console.error('IPFS upload error:', ipfsError);
+      } catch (error) {
+        console.error('File processing error:', error);
         res.status(500);
-        throw new Error('Failed to upload to IPFS');
+        throw new Error('Failed to process file');
       }
     }
 
@@ -162,12 +158,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     // Send email notification
     try {
       const emailContent = examApprovalTemplate({
-        instituteName: request.institute.name,
         examName: request.examName,
         status: status,
-        feedback: feedback || '',
-        ipfsHash: request.ipfsHash // Only included for approved requests
-      });
+        adminComment: feedback || '',
+        totalQuestions: request.totalQuestions,
+        timeLimit: 60, // Add your time limit logic here
+        ipfsHash: request.ipfsHash,
+        ipfsEncryptionKey: request.encryptionKey
+      }, status);
 
       await sendEmail({
         to: request.institute.email,
@@ -185,8 +183,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         _id: updatedRequest._id,
         examName: updatedRequest.examName,
         status: updatedRequest.status,
-        feedback: updatedRequest.feedback,
-        ipfsHash: updatedRequest.ipfsHash
+        feedback: updatedRequest.feedback
       }
     });
   } catch (error) {

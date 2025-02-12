@@ -50,14 +50,6 @@ const uploadSchema = new mongoose.Schema(
     feedback: {
       type: String,
       default: ''
-    },
-    ipfsHash: {
-      type: String,
-      default: ''
-    },
-    encryptionKey: {
-      type: String,
-      default: ''
     }
   },
   {
