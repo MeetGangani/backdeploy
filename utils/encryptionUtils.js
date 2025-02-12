@@ -112,26 +112,48 @@ export const encryptForIPFS = (data, key) => {
 };
 
 // Decrypt data from IPFS
-export const decryptFromIPFS = (encryptedObject, key) => {
+export const decryptFromIPFS = async (encryptedData, key) => {
   try {
-    // Convert the hex key to bytes
-    const keyBytes = Buffer.from(key, 'hex');
-    
-    // Convert base64 IV back to buffer
-    const iv = Buffer.from(encryptedObject.iv, 'base64');
-    
+    if (!encryptedData || !key) {
+      console.error('Missing data:', { encryptedData: !!encryptedData, key: !!key });
+      throw new Error('Missing encrypted data or key');
+    }
+
+    // Log the structure of received data
+    console.log('Attempting to decrypt data with structure:', 
+      Object.keys(encryptedData).join(', '));
+
+    // Get the pinataContent which contains our encrypted data
+    const content = encryptedData.pinataContent || encryptedData;
+
+    // Extract IV and encrypted content
+    const { iv, encryptedData: encrypted } = content;
+
+    if (!iv || !encrypted) {
+      console.error('Invalid data structure:', { hasIV: !!iv, hasEncrypted: !!encrypted });
+      throw new Error('Invalid encrypted data structure');
+    }
+
+    // Convert the key and IV from hex
+    const keyBuffer = Buffer.from(key, 'hex');
+    const ivBuffer = Buffer.from(iv, 'hex');
+
     // Create decipher
-    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBytes, iv);
+    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, keyBuffer, ivBuffer);
     
     // Decrypt the data
-    let decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     // Parse the decrypted JSON
-    return JSON.parse(decrypted);
+    const parsedData = JSON.parse(decrypted);
+    console.log('Successfully decrypted data with structure:', 
+      Object.keys(parsedData).join(', '));
+
+    return parsedData;
   } catch (error) {
-    console.error('IPFS decryption error:', error);
-    throw new Error('Failed to decrypt IPFS data');
+    console.error('Detailed decryption error:', error);
+    throw new Error(`Decryption failed: ${error.message}`);
   }
 };
 
