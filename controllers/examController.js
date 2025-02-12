@@ -6,6 +6,7 @@ import sendEmail from '../utils/emailUtils.js';
 import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
+import Upload from '../models/uploadModel.js';
 
 const logger = createLogger('examController');
 
@@ -35,22 +36,32 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 // Enhanced exam start with validation
 const startExam = asyncHandler(async (req, res) => {
   try {
-    const { ipfsHash, encryptionKey } = req.body;
+    const { ipfsHash } = req.body;
 
-    if (!ipfsHash || !encryptionKey) {
-      logger.error('Missing required fields:', { ipfsHash: !!ipfsHash, encryptionKey: !!encryptionKey });
+    if (!ipfsHash) {
+      logger.error('Missing IPFS hash');
       return res.status(400).json({
-        message: 'IPFS hash and encryption key are required'
+        message: 'IPFS hash is required'
       });
     }
 
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
+    // Find the exam in the database using the IPFS hash
+    const exam = await Upload.findOne({ ipfsHash }).select('encryptionKey examName');
+    
+    if (!exam) {
+      logger.error('Exam not found for IPFS hash:', ipfsHash);
+      return res.status(404).json({
+        message: 'Exam not found'
+      });
+    }
+
     // Fetch from IPFS with error handling
     let ipfsResponse;
     try {
       ipfsResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, {
-        timeout: 10000, // 10 second timeout
+        timeout: 10000,
         headers: {
           'Accept': 'application/json'
         }
@@ -58,8 +69,7 @@ const startExam = asyncHandler(async (req, res) => {
     } catch (ipfsError) {
       logger.error('IPFS fetch error:', ipfsError);
       return res.status(500).json({
-        message: 'Failed to fetch exam data from IPFS',
-        error: ipfsError.message
+        message: 'Failed to fetch exam data from IPFS'
       });
     }
 
@@ -70,54 +80,44 @@ const startExam = asyncHandler(async (req, res) => {
       });
     }
 
-    // Log the structure of received data
-    logger.info('IPFS data structure:', {
-      hasData: !!ipfsResponse.data,
-      dataType: typeof ipfsResponse.data,
-      keys: Object.keys(ipfsResponse.data)
-    });
-
     // Get the encrypted data
-    const encryptedData = ipfsResponse.data.pinataContent || ipfsResponse.data;
+    const encryptedData = ipfsResponse.data;
 
-    // Decrypt the exam data
+    // Decrypt using the encryption key from database
     let decryptedData;
     try {
-      decryptedData = await decryptFromIPFS(encryptedData, encryptionKey);
+      decryptedData = await decryptFromIPFS(encryptedData, exam.encryptionKey);
     } catch (decryptError) {
       logger.error('Decryption error:', decryptError);
       return res.status(500).json({
-        message: 'Failed to decrypt exam data',
-        error: decryptError.message
+        message: 'Failed to decrypt exam data'
       });
     }
 
     if (!decryptedData || !decryptedData.questions) {
-      logger.error('Invalid decrypted data:', { 
-        hasData: !!decryptedData, 
-        hasQuestions: decryptedData?.questions 
-      });
+      logger.error('Invalid decrypted data');
       return res.status(500).json({
         message: 'Invalid exam data format'
       });
     }
 
-    // Send back the exam data
+    // Remove correct answers from questions before sending to student
+    const sanitizedQuestions = decryptedData.questions.map(q => ({
+      question: q.question,
+      options: q.options
+    }));
+
     return res.json({
-      examName: decryptedData.examName,
-      questions: decryptedData.questions,
+      examName: exam.examName,
+      questions: sanitizedQuestions,
       totalQuestions: decryptedData.totalQuestions,
       timeLimit: decryptedData.timeLimit || 60
     });
 
   } catch (error) {
-    logger.error('Exam start error:', {
-      message: error.message,
-      stack: error.stack
-    });
+    logger.error('Exam start error:', error);
     return res.status(500).json({
-      message: 'Failed to start exam',
-      error: error.message
+      message: 'Failed to start exam'
     });
   }
 });
