@@ -64,26 +64,20 @@ const googleAuthCallback = asyncHandler(async (req, res) => {
     if (!req.user) {
       throw new Error('Authentication failed');
     }
-    
-    // Generate token for the authenticated user
+
+    // Generate token and set cookie
     generateToken(res, req.user._id);
-    
-    // Set user info in a cookie that frontend can read
-    res.cookie('userInfo', JSON.stringify({
-      _id: req.user._id,
-      name: req.user.name,
-      email: req.user.email,
-      userType: req.user.userType,
-    }), {
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      path: '/',
-    });
-    
+
     // Redirect to frontend with success parameter
-    res.redirect('http://localhost:3000/?loginSuccess=true');
+    res.redirect(process.env.NODE_ENV === 'production' 
+      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app/?loginSuccess=true'
+      : 'http://localhost:3000/?loginSuccess=true'
+    );
   } catch (error) {
-    console.error('Google auth callback error:', error);
-    res.redirect('http://localhost:3000/login?error=auth_failed');
+    res.redirect(process.env.NODE_ENV === 'production'
+      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app/login?error=auth_failed'
+      : 'http://localhost:3000/login?error=auth_failed'
+    );
   }
 });
 

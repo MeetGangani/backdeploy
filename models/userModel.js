@@ -5,22 +5,39 @@ const userSchema = mongoose.Schema(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, 'Name is required'],
+      trim: true,
+      minLength: [2, 'Name must be at least 2 characters long']
     },
     email: {
       type: String,
-      required: true,
+      required: [true, 'Email is required'],
       unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please enter a valid email']
     },
     password: {
       type: String,
-      required: true,
+      required: [true, 'Password is required'],
+      minLength: [6, 'Password must be at least 6 characters long']
     },
     userType: {
       type: String,
       required: true,
-      enum: ['student', 'admin', 'institute'],
+      enum: {
+        values: ['student', 'admin', 'institute'],
+        message: '{VALUE} is not a valid user type'
+      },
       default: 'student'
+    },
+    lastLogin: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: true
     }
   },
   {

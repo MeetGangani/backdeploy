@@ -39,75 +39,67 @@ const startExam = asyncHandler(async (req, res) => {
   try {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Find the exam using IPFS hash
-    const exam = await FileRequest.findOne({
-      ipfsHash,
-      status: 'approved'
+    // Add timeout and retry logic for IPFS fetches
+    const fetchWithRetry = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const response = await axios.get(
+            `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
+            { 
+              timeout: 10000,
+              headers: {
+                'Authorization': `Bearer ${process.env.PINATA_JWT}`
+              }
+            }
+          );
+          return response.data;
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    };
+
+    const encryptedData = await fetchWithRetry();
+
+    if (!encryptedData || !encryptedData.iv || !encryptedData.encryptedData) {
+      throw new Error('Invalid data format from IPFS');
+    }
+
+    logger.info('Decrypting exam data...');
+    // Decrypt the exam data using the stored IPFS encryption key
+    const decryptedData = decryptFromIPFS(encryptedData, req.user.ipfsEncryptionKey);
+    
+    if (!decryptedData || !decryptedData.questions) {
+      throw new Error('Invalid exam data structure');
+    }
+
+    // Validate questions format
+    if (!Array.isArray(decryptedData.questions)) {
+      throw new Error('Invalid questions format');
+    }
+
+    logger.info('Preparing exam data for student...');
+    // Return exam data without correct answers
+    const sanitizedQuestions = decryptedData.questions.map(q => ({
+      text: q.question,
+      options: q.options
+    }));
+
+    res.json({
+      _id: req.user.exam._id,
+      examName: req.user.exam.examName,
+      timeLimit: req.user.exam.timeLimit,
+      totalQuestions: req.user.exam.totalQuestions,
+      questions: sanitizedQuestions
     });
-
-    if (!exam) {
-      res.status(404);
-      throw new Error('Exam not found or not approved');
-    }
-
-    // Check if student has already attempted this exam
-    const existingAttempt = await ExamResponse.findOne({
-      exam: exam._id,
-      student: req.user._id
-    });
-
-    if (existingAttempt) {
-      res.status(400);
-      throw new Error('You have already attempted this exam');
-    }
-
-    try {
-      logger.info('Fetching exam data from IPFS...');
-      // Fetch encrypted data from IPFS
-      const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
-      
-      if (!response.data || !response.data.iv || !response.data.encryptedData) {
-        throw new Error('Invalid data format from IPFS');
-      }
-
-      logger.info('Decrypting exam data...');
-      // Decrypt the exam data using the stored IPFS encryption key
-      const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
-      
-      if (!decryptedData || !decryptedData.questions) {
-        throw new Error('Invalid exam data structure');
-      }
-
-      // Validate questions format
-      if (!Array.isArray(decryptedData.questions)) {
-        throw new Error('Invalid questions format');
-      }
-
-      logger.info('Preparing exam data for student...');
-      // Return exam data without correct answers
-      const sanitizedQuestions = decryptedData.questions.map(q => ({
-        text: q.question,
-        options: q.options
-      }));
-
-      res.json({
-        _id: exam._id,
-        examName: exam.examName,
-        timeLimit: exam.timeLimit,
-        totalQuestions: exam.totalQuestions,
-        questions: sanitizedQuestions
-      });
-
-    } catch (error) {
-      logger.error('Exam preparation error:', error);
-      res.status(500);
-      throw new Error('Failed to prepare exam content');
-    }
 
   } catch (error) {
-    logger.error('Start exam error:', error);
-    res.status(error.status || 500);
-    throw new Error(`Failed to start exam: ${error.message}`);
+    logger.error('Exam start error:', error);
+    res.status(500).json({
+      message: 'Failed to start exam',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 

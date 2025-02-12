@@ -13,6 +13,15 @@ const protect = asyncHandler(async (req, res, next) => {
 
       req.user = await User.findById(decoded.userId).select('-password');
 
+      // Add CORS headers for authenticated requests
+      res.header('Access-Control-Allow-Credentials', 'true');
+      if (process.env.NODE_ENV === 'production') {
+        res.header(
+          'Access-Control-Allow-Origin', 
+          'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+        );
+      }
+
       next();
     } catch (error) {
       console.error(error);

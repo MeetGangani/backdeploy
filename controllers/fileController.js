@@ -8,29 +8,39 @@ const downloadAndDecryptFile = asyncHandler(async (req, res) => {
         const { ipfsHash } = req.params;
         console.log('Received request for IPFS Hash:', ipfsHash);
 
-        // Known encryption key for the file
-        const encryptionKey = '700dade8f6f34badf41cf4c7468d9b50969c51a13c95a58bfc2f2abef7682e75';
-        
-        const fileUrl = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
-        console.log('Fetching from:', fileUrl);
-    
-        // Fetch the encrypted file from IPFS
-        const response = await axios.get(fileUrl, { 
-            responseType: 'text',
-            headers: {
-                'Accept': '*/*'
+        // Use a fallback gateway if Pinata fails
+        const gateways = [
+            `https://gateway.pinata.cloud/ipfs/${ipfsHash}`,
+            `https://ipfs.io/ipfs/${ipfsHash}`,
+            `https://cloudflare-ipfs.com/ipfs/${ipfsHash}`
+        ];
+
+        let response;
+        for (const gateway of gateways) {
+            try {
+                response = await axios.get(gateway, { 
+                    responseType: 'text',
+                    headers: {
+                        'Accept': '*/*'
+                    },
+                    timeout: 10000 // 10 second timeout
+                });
+                if (response.data) break;
+            } catch (err) {
+                console.log(`Failed to fetch from ${gateway}:`, err.message);
+                continue;
             }
-        });
-        
-        if (!response.data) {
-            throw new Error('No data received from IPFS');
+        }
+
+        if (!response?.data) {
+            throw new Error('Failed to fetch file from all IPFS gateways');
         }
         
         console.log('Data received from IPFS, length:', response.data.length);
         console.log('Data sample:', response.data.substring(0, 100)); // Log first 100 chars
     
         // Decrypt the file
-        const decryptedData = decryptFile(response.data, encryptionKey);
+        const decryptedData = decryptFile(response.data, '700dade8f6f34badf41cf4c7468d9b50969c51a13c95a58bfc2f2abef7682e75');
         if (!decryptedData) {
             throw new Error('Decryption resulted in empty data');
         }

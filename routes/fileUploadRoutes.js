@@ -6,14 +6,21 @@ import {
   getMyUploads,
   getUploadDetails
 } from '../controllers/fileUploadController.js';
+import { upload, uploadErrorHandler } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
 // Configure multer for file uploads
-const upload = multer({ storage: multer.memoryStorage() });
+const uploadMulter = multer({ storage: multer.memoryStorage() });
 
 // Institute routes
-router.post('/', protect, instituteOnly, upload.single('file'), uploadFile);
+router.post('/', 
+  protect, 
+  instituteOnly, 
+  uploadMulter.single('file'), 
+  uploadErrorHandler,
+  uploadFile
+);
 router.get('/my-uploads', protect, instituteOnly, getMyUploads);
 router.get('/requests/:id', protect, instituteOnly, getUploadDetails);
 

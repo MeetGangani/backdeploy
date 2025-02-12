@@ -29,7 +29,10 @@
     "nodemailer": "^6.10.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "react-bootstrap": "^2.10.9"
+    "react-bootstrap": "^2.10.9",
+    "helmet": "^7.1.0",
+    "express-rate-limit": "^7.1.5",
+    "express-mongo-sanitize": "^2.2.0"
   },
   "devDependencies": {
     "concurrently": "^8.0.1",

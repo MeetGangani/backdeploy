@@ -63,6 +63,35 @@ const uploadFile = asyncHandler(async (req, res) => {
     const { encrypted, encryptionKey } = processFile(req.file.buffer);
     const ipfsEncryptionKey = generateEncryptionKey();
 
+    // Add retry logic for Pinata uploads
+    const uploadToPinata = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const formData = new FormData();
+          formData.append('file', req.file.buffer);
+          
+          const response = await axios.post(
+            'https://api.pinata.cloud/pinning/pinFileToIPFS',
+            formData,
+            {
+              headers: {
+                'Authorization': `Bearer ${process.env.PINATA_JWT}`,
+                ...formData.getHeaders()
+              },
+              timeout: 30000 // 30 second timeout
+            }
+          );
+          
+          return response.data.IpfsHash;
+        } catch (error) {
+          if (i === retries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        }
+      }
+    };
+
+    const ipfsHash = await uploadToPinata();
+
     // Create file request with encrypted binary data
     const fileRequest = await FileRequest.create({
       institute: req.user._id,
@@ -74,7 +103,8 @@ const uploadFile = asyncHandler(async (req, res) => {
       totalQuestions: jsonContent.questions.length,
       status: 'pending',
       submittedBy: req.user._id,
-      timeLimit: parseInt(req.body.timeLimit) || 60
+      timeLimit: parseInt(req.body.timeLimit) || 60,
+      ipfsHash: ipfsHash
     });
 
     res.status(201).json({
@@ -87,8 +117,10 @@ const uploadFile = asyncHandler(async (req, res) => {
 
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500);
-    throw new Error('Failed to upload file');
+    res.status(500).json({ 
+      message: 'Failed to upload file',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
