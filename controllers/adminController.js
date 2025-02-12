@@ -160,16 +160,21 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         examName: request.examName,
         status: status,
         feedback: feedback || '',
-        ipfsHash: request.ipfsHash,
-        encryptionKey: request.encryptionKey
+        ipfsHash: status === 'approved' ? request.ipfsHash : undefined,
+        encryptionKey: status === 'approved' ? request.encryptionKey : undefined
       });
+
+      const emailSubject = status === 'approved' 
+        ? `Exam Request Approved - ${request.examName}`
+        : `Exam Request Rejected - ${request.examName}`;
 
       await sendEmail({
         to: request.institute.email,
-        subject: `Exam Request ${status.toUpperCase()}`,
+        subject: emailSubject,
         html: emailContent
       });
-      logger.info(`Notification email sent to ${request.institute.email}`);
+      
+      logger.info(`Notification email sent to ${request.institute.email} for ${status} status`);
     } catch (emailError) {
       logger.error('Email sending error:', emailError);
       // Continue even if email fails
