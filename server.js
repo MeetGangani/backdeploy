@@ -20,6 +20,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import { createLogger } from './utils/logger.js';
 import cors from 'cors';
 import MongoStore from 'connect-mongo';
+import uploadRoutes from './routes/uploadRoutes.js';
 
 const logger = createLogger('server');
 dotenv.config();
@@ -100,7 +101,7 @@ if (process.env.NODE_ENV !== 'production') {
 // API routes
 app.use('/api/users', userRoutes);
 app.use('/api/files', fileRoutes);
-app.use('/api/upload', fileUploadRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/contact', contactRoutes);
