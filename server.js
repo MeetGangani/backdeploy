@@ -43,13 +43,16 @@ app.use('/api/', limiter);
 // Apply CORS middleware first
 app.use(corsMiddleware);
 
-// Then other middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Trust proxy for secure cookies
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
+app.use(express.json());
 app.use(cookieParser());
 
 // Session configuration
-const sessionConfig = {
+app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -58,13 +61,7 @@ const sessionConfig = {
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
-};
-
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1); // trust first proxy
-}
-
-app.use(session(sessionConfig));
+}));
 
 // Passport middleware
 app.use(passport.initialize());

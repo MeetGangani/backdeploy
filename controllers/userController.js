@@ -65,7 +65,7 @@ const googleAuth = passport.authenticate('google', {
 const googleCallback = async (req, res) => {
   try {
     const frontendURL = process.env.NODE_ENV === 'production'
-      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+      ? 'https://nexusedu-jade.vercel.app'
       : 'http://localhost:3000';
 
     if (req.user) {
@@ -80,7 +80,7 @@ const googleCallback = async (req, res) => {
   } catch (error) {
     console.error('Google callback error:', error);
     const frontendURL = process.env.NODE_ENV === 'production'
-      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+      ? 'https://nexusedu-jade.vercel.app'
       : 'http://localhost:3000';
     res.redirect(`${frontendURL}/register?error=${encodeURIComponent(error.message)}`);
   }
