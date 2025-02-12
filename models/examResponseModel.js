@@ -7,55 +7,37 @@ const examResponseSchema = new mongoose.Schema({
     required: true
   },
   exam: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'FileRequest',
+    _id: mongoose.Schema.Types.ObjectId,
+    ipfsHash: String,
+    examName: String,
+    timeLimit: Number,
+    totalQuestions: Number
+  },
+  startTime: {
+    type: Date,
     required: true
+  },
+  endTime: Date,
+  status: {
+    type: String,
+    enum: ['in-progress', 'completed', 'timed-out'],
+    default: 'in-progress'
   },
   answers: {
     type: Map,
     of: Number,
-    required: true,
-    validate: {
-      validator: function(v) {
-        return v.size > 0;
-      },
-      message: 'At least one answer must be provided'
-    }
+    default: {}
   },
-  score: {
-    type: Number,
-    required: true,
-    min: [0, 'Score cannot be negative'],
-    max: [100, 'Score cannot exceed 100']
-  },
-  correctAnswers: {
-    type: Number,
-    required: true,
-    min: 0
-  },
-  totalQuestions: {
-    type: Number,
-    required: true,
-    min: 1
-  },
-  submittedAt: {
-    type: Date,
-    default: Date.now
-  },
-  timeSpent: {
-    type: Number, // in minutes
-    required: true,
-    min: 0
-  },
-  ipAddress: String,
-  userAgent: String
+  score: Number,
+  timeRemaining: Number,
+  submittedAt: Date
 }, {
   timestamps: true
 });
 
-// Add compound index for better query performance
-examResponseSchema.index({ student: 1, exam: 1 }, { unique: true });
-examResponseSchema.index({ exam: 1, submittedAt: -1 });
+// Add index for querying
+examResponseSchema.index({ student: 1, 'exam.ipfsHash': 1 });
 
 const ExamResponse = mongoose.model('ExamResponse', examResponseSchema);
+
 export default ExamResponse; 
