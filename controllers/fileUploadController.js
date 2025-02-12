@@ -4,26 +4,11 @@ import axios from 'axios';
 import FormData from 'form-data';
 import FileRequest from '../models/fileRequestModel.js';
 import { encryptFile, generateEncryptionKey, jsonToBinary, processFile } from '../utils/encryptionUtils.js';
+import { createLogger } from '../utils/logger.js';
 
-// Utility function to process and encrypt file
-const processFile = (buffer) => {
-  try {
-    // Parse JSON content
-    const jsonContent = JSON.parse(buffer.toString());
-    
-    // Generate encryption key
-    const encryptionKey = generateEncryptionKey();
-    
-    // Encrypt the JSON data
-    const encrypted = encryptFile(JSON.stringify(jsonContent), encryptionKey);
-    
-    return { encrypted, encryptionKey };
-  } catch (error) {
-    console.error('File processing error:', error);
-    throw new Error('Failed to process file');
-  }
-};
+const logger = createLogger('fileUploadController');
 
+// Validate question format utility
 const validateQuestionFormat = (questions) => {
   if (!Array.isArray(questions)) throw new Error('Questions must be an array');
   
@@ -45,6 +30,9 @@ const validateQuestionFormat = (questions) => {
 const uploadFile = asyncHandler(async (req, res) => {
   try {
     const { examName, description, questions, totalQuestions, timeLimit } = req.body;
+
+    // Validate questions format
+    validateQuestionFormat(questions);
 
     // Convert exam data to binary
     const examData = {
