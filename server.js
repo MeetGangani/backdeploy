@@ -18,6 +18,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 import { createLogger } from './utils/logger.js';
+import cors from 'cors';
 
 const logger = createLogger('server');
 dotenv.config();
@@ -39,11 +40,12 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Body parsing middleware
+// Apply CORS middleware first
+app.use(corsMiddleware);
+
+// Then other middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Cookie parsing
 app.use(cookieParser());
 
 // Session configuration
@@ -53,14 +55,13 @@ const sessionConfig = {
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
 };
 
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1); // trust first proxy
-  sessionConfig.cookie.sameSite = 'none';
 }
 
 app.use(session(sessionConfig));
@@ -82,9 +83,6 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
-
-// Apply CORS middleware before routes
-app.use(corsMiddleware);
 
 // Request logging in development
 if (process.env.NODE_ENV !== 'production') {

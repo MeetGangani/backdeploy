@@ -13,10 +13,10 @@ const corsMiddleware = (req, res, next) => {
   // Allow credentials
   res.header('Access-Control-Allow-Credentials', 'true');
 
-  // Allow specific headers
+  // Allow specific headers - include X-Forwarded-Proto
   res.header(
     'Access-Control-Allow-Headers',
-    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Forwarded-Proto'
   );
 
   // Allow specific methods
