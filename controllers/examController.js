@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import ExamResponse from '../models/examResponseModel.js';
-import { decryptFromIPFS } from '../utils/encryptionUtils.js';
+import { decryptFile } from '../utils/encryptionUtils.js';
 import sendEmail from '../utils/emailUtils.js';
 import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
@@ -37,7 +37,7 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 const startExam = asyncHandler(async (req, res) => {
   try {
     const { ipfsHash } = req.body;
-    const studentId = req.user._id; // Get student ID from authenticated user
+    const studentId = req.user._id;
 
     if (!ipfsHash) {
       logger.error('Missing IPFS hash');
@@ -46,7 +46,7 @@ const startExam = asyncHandler(async (req, res) => {
       });
     }
 
-    // Check if student has already started this exam
+    // Check if student has already attempted this exam
     const existingAttempt = await ExamResponse.findOne({
       student: studentId,
       'exam.ipfsHash': ipfsHash
@@ -61,11 +61,11 @@ const startExam = asyncHandler(async (req, res) => {
 
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Find the exam in the database
-    const exam = await Upload.findOne({ 
+    // Find the exam in the database with encrypted data and encryption key
+    const exam = await FileRequest.findOne({ 
       ipfsHash,
       status: 'approved'
-    }).select('ipfsEncryptionKey examName timeLimit totalQuestions');
+    }).select('encryptedData encryptionKey examName timeLimit totalQuestions');
     
     if (!exam) {
       logger.error('Exam not found or not approved for IPFS hash:', ipfsHash);
@@ -74,47 +74,19 @@ const startExam = asyncHandler(async (req, res) => {
       });
     }
 
-    // Fetch from IPFS with error handling
-    let ipfsResponse;
-    try {
-      ipfsResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-    } catch (ipfsError) {
-      logger.error('IPFS fetch error:', ipfsError);
-      return res.status(500).json({
-        message: 'Unable to fetch exam data. Please try again or contact support.'
-      });
-    }
-
-    if (!ipfsResponse.data) {
-      logger.error('No data received from IPFS');
-      return res.status(500).json({
-        message: 'No exam data found. Please contact your institute.'
-      });
-    }
-
-    // Get the encrypted data
-    const encryptedData = ipfsResponse.data;
-
-    // Decrypt using the encryption key from database
+    // Decrypt exam data using the stored encryption key
     let decryptedData;
     try {
-      decryptedData = await decryptFromIPFS(encryptedData, exam.ipfsEncryptionKey);
+      // Use decryptFile since data was encrypted with encryptFile
+      decryptedData = decryptFile(exam.encryptedData, exam.encryptionKey);
+      
+      if (!decryptedData || !decryptedData.questions) {
+        throw new Error('Invalid exam data structure');
+      }
     } catch (decryptError) {
       logger.error('Decryption error:', decryptError);
       return res.status(500).json({
         message: 'Unable to process exam data. Please contact your institute.'
-      });
-    }
-
-    if (!decryptedData || !decryptedData.questions) {
-      logger.error('Invalid decrypted data');
-      return res.status(500).json({
-        message: 'Invalid exam format. Please contact your institute.'
       });
     }
 
@@ -140,7 +112,7 @@ const startExam = asyncHandler(async (req, res) => {
       options: q.options
     }));
 
-    // Send exam data to student with the response ID
+    // Send exam data to student
     return res.json({
       examResponseId: examResponse._id,
       examName: exam.examName,
@@ -179,7 +151,7 @@ const submitExam = asyncHandler(async (req, res) => {
 
     // Get and decrypt exam data
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
-    const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+    const decryptedData = decryptFile(response.data, exam.encryptionKey);
 
     // Calculate score with detailed analysis
     let correctAnswers = 0;
