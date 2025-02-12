@@ -1,13 +1,15 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import crypto from 'crypto';
+import axios from 'axios';
+import FormData from 'form-data';
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import sendEmail from '../utils/emailUtils.js';
-import { processFile } from '../utils/encryptionUtils.js';
+import { encryptForIPFS, generateEncryptionKey, decryptFile } from '../utils/encryptionUtils.js';
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import Upload from '../models/uploadModel.js';
@@ -28,6 +30,11 @@ const contractAddress = process.env.CONTRACT_ADDRESS;
 const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 const contract = new ethers.Contract(contractAddress, contractABI, wallet);
+
+// Add Pinata configuration
+const PINATA_API_KEY = process.env.PINATA_API_KEY;
+const PINATA_SECRET_KEY = process.env.PINATA_SECRET_KEY;
+const PINATA_JWT = process.env.PINATA_JWT;
 
 const logger = createLogger('adminController');
 
@@ -83,14 +90,41 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
     if (status === 'approved') {
       try {
-        // Process and encrypt file using existing utility
-        const { encrypted: encryptedData, encryptionKey } = await processFile(request.file.data);
-        request.encryptedData = encryptedData;
+        // Encrypt the data
+        const encryptionKey = generateEncryptionKey();
+        const encryptedData = encryptForIPFS(request.questions, encryptionKey);
+        
+        const data = JSON.stringify({
+          pinataOptions: {
+            cidVersion: 1
+          },
+          pinataMetadata: {
+            name: `exam_${Date.now()}`,
+            keyvalues: {
+              type: "encrypted_exam",
+              timestamp: Date.now().toString()
+            }
+          },
+          pinataContent: encryptedData
+        });
+
+        const config = {
+          method: 'post',
+          url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${PINATA_JWT}`
+          },
+          data: data
+        };
+
+        const response = await axios(config);
+        request.ipfsHash = response.data.IpfsHash;
         request.encryptionKey = encryptionKey;
       } catch (error) {
-        console.error('File processing error:', error);
+        console.error('IPFS upload error:', error);
         res.status(500);
-        throw new Error('Failed to process file');
+        throw new Error('Failed to upload to IPFS');
       }
     }
 
@@ -105,7 +139,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         examName: request.examName,
         status: status,
         feedback: feedback || '',
-        totalQuestions: request.totalQuestions
+        ipfsHash: request.ipfsHash
       });
 
       await sendEmail({
@@ -124,7 +158,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         _id: updatedRequest._id,
         examName: updatedRequest.examName,
         status: updatedRequest.status,
-        feedback: updatedRequest.feedback
+        feedback: updatedRequest.feedback,
+        ipfsHash: updatedRequest.ipfsHash
       }
     });
   } catch (error) {
