@@ -1,9 +1,6 @@
 import asyncHandler from 'express-async-handler';
-import crypto from 'crypto';
-import axios from 'axios';
-import FormData from 'form-data';
 import FileRequest from '../models/fileRequestModel.js';
-import { encryptFile, generateEncryptionKey, jsonToBinary, processFile } from '../utils/encryptionUtils.js';
+import { encryptFile, generateEncryptionKey, processFile } from '../utils/encryptionUtils.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('fileUploadController');
@@ -21,57 +18,54 @@ const validateQuestionFormat = (questions) => {
       throw new Error(`Question ${index + 1} has invalid correct answer index (must be 1-4)`);
     }
   });
-  return true;
 };
 
-// @desc    Upload file and create request
-// @route   POST /api/upload
-// @access  Institute Only
 const uploadFile = asyncHandler(async (req, res) => {
   try {
-    const { examName, description, questions, totalQuestions, timeLimit } = req.body;
+    if (!req.file) {
+      res.status(400);
+      throw new Error('No file uploaded');
+    }
 
-    // Validate questions format
-    validateQuestionFormat(questions);
+    // Parse and validate JSON content
+    let jsonContent;
+    try {
+      jsonContent = JSON.parse(req.file.buffer.toString());
+      validateQuestionFormat(jsonContent.questions);
+    } catch (error) {
+      res.status(400);
+      throw new Error(`Invalid JSON file: ${error.message}`);
+    }
 
-    // Convert exam data to binary
-    const examData = {
-      examName,
-      description,
-      questions,
-      totalQuestions,
-      timeLimit
-    };
-    const binaryData = jsonToBinary(examData);
+    // Process the file and get encrypted binary data
+    const { encrypted, encryptionKey } = processFile(req.file.buffer);
+    const ipfsEncryptionKey = generateEncryptionKey();
 
-    // Process file (encrypt for initial storage)
-    const { encrypted: encryptedData, encryptionKey } = processFile(binaryData);
-
-    // Create file request
+    // Create file request with encrypted binary data
     const fileRequest = await FileRequest.create({
       institute: req.user._id,
-      examName,
-      description,
-      encryptedData,
-      encryptionKey,
-      totalQuestions,
-      timeLimit,
-      questions,
+      examName: req.body.examName,
+      description: req.body.description,
+      encryptedData: encrypted,
+      encryptionKey: encryptionKey,
+      ipfsEncryptionKey: ipfsEncryptionKey,
+      totalQuestions: jsonContent.questions.length,
+      status: 'pending',
       submittedBy: req.user._id,
-      status: 'pending'
+      timeLimit: parseInt(req.body.timeLimit) || 60,
+      questions: jsonContent.questions // Store questions for later use
     });
 
     res.status(201).json({
       message: 'File uploaded successfully',
-      fileRequest: {
-        _id: fileRequest._id,
-        examName: fileRequest.examName,
-        status: fileRequest.status
-      }
+      requestId: fileRequest._id,
+      examName: fileRequest.examName,
+      totalQuestions: fileRequest.totalQuestions,
+      status: fileRequest.status
     });
 
   } catch (error) {
-    logger.error('File upload error:', error);
+    logger.error('Upload error:', error);
     res.status(500);
     throw new Error('Failed to upload file');
   }

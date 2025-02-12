@@ -16,42 +16,22 @@ export const binaryToJson = (buffer) => {
   return JSON.parse(buffer.toString());
 };
 
-// Add constant for key derivation iterations
-const PBKDF2_ITERATIONS = 100000;
-
-// Add key derivation function
-const deriveKey = (password, salt) => {
-  return crypto.pbkdf2Sync(
-    password,
-    salt,
-    PBKDF2_ITERATIONS,
-    32,
-    'sha512'
-  );
-};
-
 // Encrypt file for initial storage
 export const encryptFile = (data, secretKey) => {
   try {
-    const salt = crypto.randomBytes(16);
-    const key = deriveKey(secretKey, salt);
-    const iv = crypto.randomBytes(16);
+    // Convert data to string if it's an object
+    const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    let encrypted = cipher.update(
-      typeof data === 'object' ? JSON.stringify(data) : data,
-      'utf8',
-      'base64'
-    );
-    encrypted += cipher.final('base64');
-    const authTag = cipher.getAuthTag();
-
-    return {
-      salt: salt.toString('base64'),
-      iv: iv.toString('base64'),
-      encrypted,
-      authTag: authTag.toString('base64')
-    };
+    // Generate IV
+    const iv = CryptoJS.lib.WordArray.random(16);
+    
+    // Encrypt using CryptoJS with IV
+    const encrypted = CryptoJS.AES.encrypt(dataString, secretKey, {
+      iv: iv
+    });
+    
+    // Return IV and encrypted data concatenated
+    return iv.toString() + ':' + encrypted.toString();
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt file');
@@ -61,21 +41,13 @@ export const encryptFile = (data, secretKey) => {
 // Decrypt file from storage
 export const decryptFile = (encryptedData, secretKey) => {
   try {
-    const { salt, iv, encrypted, authTag } = encryptedData;
+    const [iv, data] = encryptedData.split(':');
     
-    const key = deriveKey(secretKey, Buffer.from(salt, 'base64'));
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      key,
-      Buffer.from(iv, 'base64')
-    );
+    const decrypted = CryptoJS.AES.decrypt(data, secretKey, {
+      iv: CryptoJS.enc.Hex.parse(iv)
+    });
     
-    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-    
-    let decrypted = decipher.update(encrypted, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    return JSON.parse(decrypted);
+    return JSON.parse(decrypted.toString(CryptoJS.enc.Utf8));
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt file');
@@ -128,8 +100,15 @@ export const decryptFromIPFS = async (encryptedData, key) => {
 // Process file function
 export const processFile = (buffer) => {
   try {
+    // Parse JSON content
+    const jsonContent = JSON.parse(buffer.toString());
+    
+    // Generate encryption key
     const encryptionKey = generateEncryptionKey();
-    const encrypted = encryptFile(buffer, encryptionKey);
+    
+    // Encrypt the JSON data
+    const encrypted = encryptFile(jsonContent, encryptionKey);
+    
     return { encrypted, encryptionKey };
   } catch (error) {
     console.error('File processing error:', error);
