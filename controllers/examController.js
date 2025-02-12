@@ -20,12 +20,26 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 
     const attemptedExamIds = attemptedExams.map(response => response.exam);
 
+    // Updated query to include institute information
     const availableExams = await FileRequest.find({
       status: 'approved',
       _id: { $nin: attemptedExamIds }
-    }).select('examName timeLimit totalQuestions ipfsHash').lean();
+    })
+    .populate('institute', 'name') // Populate institute details
+    .select('examName timeLimit totalQuestions ipfsHash institute')
+    .lean();
 
-    res.json(availableExams);
+    // Format the response
+    const formattedExams = availableExams.map(exam => ({
+      _id: exam._id,
+      examName: exam.examName,
+      instituteName: exam.institute?.name || 'Unknown Institute',
+      timeLimit: exam.timeLimit,
+      totalQuestions: exam.totalQuestions,
+      ipfsHash: exam.ipfsHash
+    }));
+
+    res.json(formattedExams);
   } catch (error) {
     logger.error('Error fetching available exams:', error);
     res.status(500);
@@ -61,11 +75,13 @@ const startExam = asyncHandler(async (req, res) => {
 
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Find the exam in the database with encrypted data and encryption key
+    // Find the exam with more details
     const exam = await FileRequest.findOne({ 
       ipfsHash,
       status: 'approved'
-    }).select('encryptedData encryptionKey examName timeLimit totalQuestions');
+    })
+    .populate('institute', 'name')
+    .select('encryptedData encryptionKey examName timeLimit totalQuestions institute');
     
     if (!exam) {
       logger.error('Exam not found or not approved for IPFS hash:', ipfsHash);
@@ -90,20 +106,21 @@ const startExam = asyncHandler(async (req, res) => {
       });
     }
 
-    // Create new exam response entry
+    // Create exam response with more details
     const examResponse = await ExamResponse.create({
       student: studentId,
       exam: {
         _id: exam._id,
         ipfsHash: ipfsHash,
         examName: exam.examName,
+        instituteName: exam.institute?.name,
         timeLimit: exam.timeLimit,
         totalQuestions: exam.totalQuestions
       },
       startTime: new Date(),
       status: 'in-progress',
       answers: {},
-      timeRemaining: exam.timeLimit * 60 // Convert to seconds
+      timeRemaining: exam.timeLimit * 60
     });
 
     // Remove correct answers from questions before sending to student
@@ -112,10 +129,11 @@ const startExam = asyncHandler(async (req, res) => {
       options: q.options
     }));
 
-    // Send exam data to student
+    // Send exam data with more details
     return res.json({
       examResponseId: examResponse._id,
       examName: exam.examName,
+      instituteName: exam.institute?.name,
       questions: sanitizedQuestions,
       totalQuestions: exam.totalQuestions,
       timeLimit: exam.timeLimit || 60
