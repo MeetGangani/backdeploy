@@ -19,6 +19,7 @@ import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
 import { createLogger } from './utils/logger.js';
 import cors from 'cors';
+import MongoStore from 'connect-mongo';
 
 const logger = createLogger('server');
 dotenv.config();
@@ -51,11 +52,16 @@ if (process.env.NODE_ENV === 'production') {
 app.use(express.json());
 app.use(cookieParser());
 
-// Session configuration
+// Session configuration with MongoDB store
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI,
+    collectionName: 'sessions',
+    ttl: 24 * 60 * 60 // Session TTL (1 day)
+  }),
   cookie: {
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
