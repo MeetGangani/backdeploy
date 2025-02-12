@@ -2,6 +2,7 @@ import asyncHandler from 'express-async-handler';
 import axios from 'axios';
 import crypto from 'crypto';
 import { decryptFile } from '../utils/encryptionUtils.js';
+import FormData from 'form-data';
 
 const downloadAndDecryptFile = asyncHandler(async (req, res) => {
     try {
@@ -68,6 +69,36 @@ const downloadAndDecryptFile = asyncHandler(async (req, res) => {
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
+});
+
+export const uploadFile = asyncHandler(async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file.buffer, {
+      filename: file.originalname,
+      contentType: file.mimetype,
+    });
+
+    const pinataResponse = await axios.post(
+      'https://api.pinata.cloud/pinning/pinFileToIPFS',
+      formData,
+      {
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${formData._boundary}`,
+          Authorization: `Bearer ${process.env.PINATA_JWT}`,
+        },
+      }
+    );
+
+    return {
+      success: true,
+      ipfsHash: pinataResponse.data.IpfsHash,
+      message: 'File uploaded successfully'
+    };
+  } catch (error) {
+    console.error('Pinata upload error:', error);
+    throw new Error(error.response?.data?.message || 'Error uploading to IPFS');
+  }
 });
 
 export { downloadAndDecryptFile };
