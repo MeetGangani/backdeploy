@@ -42,8 +42,17 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Apply CORS middleware first
-app.use(corsMiddleware);
+// Updated CORS configuration
+app.use(cors({
+  origin: [
+    'https://nexusedu-jade.vercel.app',
+    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
+    // Add any other frontend URLs you need
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Trust proxy for secure cookies
 if (process.env.NODE_ENV === 'production') {

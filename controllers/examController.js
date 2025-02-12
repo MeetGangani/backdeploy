@@ -38,33 +38,72 @@ const startExam = asyncHandler(async (req, res) => {
     const { ipfsHash, encryptionKey } = req.body;
 
     if (!ipfsHash || !encryptionKey) {
-      res.status(400);
-      throw new Error('IPFS hash and encryption key are required');
+      logger.error('Missing required fields:', { ipfsHash: !!ipfsHash, encryptionKey: !!encryptionKey });
+      return res.status(400).json({
+        message: 'IPFS hash and encryption key are required'
+      });
     }
 
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Fetch from IPFS
-    const ipfsResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
-    
-    if (!ipfsResponse.data) {
-      throw new Error('No data received from IPFS');
+    // Fetch from IPFS with error handling
+    let ipfsResponse;
+    try {
+      ipfsResponse = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, {
+        timeout: 10000, // 10 second timeout
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
+    } catch (ipfsError) {
+      logger.error('IPFS fetch error:', ipfsError);
+      return res.status(500).json({
+        message: 'Failed to fetch exam data from IPFS',
+        error: ipfsError.message
+      });
     }
 
-    logger.info('Decrypting exam data...');
+    if (!ipfsResponse.data) {
+      logger.error('No data received from IPFS');
+      return res.status(500).json({
+        message: 'No data received from IPFS'
+      });
+    }
 
-    // The actual encrypted data is in pinataContent
+    // Log the structure of received data
+    logger.info('IPFS data structure:', {
+      hasData: !!ipfsResponse.data,
+      dataType: typeof ipfsResponse.data,
+      keys: Object.keys(ipfsResponse.data)
+    });
+
+    // Get the encrypted data
     const encryptedData = ipfsResponse.data.pinataContent || ipfsResponse.data;
-    
+
     // Decrypt the exam data
-    const decryptedData = await decryptFromIPFS(encryptedData, encryptionKey);
+    let decryptedData;
+    try {
+      decryptedData = await decryptFromIPFS(encryptedData, encryptionKey);
+    } catch (decryptError) {
+      logger.error('Decryption error:', decryptError);
+      return res.status(500).json({
+        message: 'Failed to decrypt exam data',
+        error: decryptError.message
+      });
+    }
 
     if (!decryptedData || !decryptedData.questions) {
-      throw new Error('Invalid exam data format');
+      logger.error('Invalid decrypted data:', { 
+        hasData: !!decryptedData, 
+        hasQuestions: decryptedData?.questions 
+      });
+      return res.status(500).json({
+        message: 'Invalid exam data format'
+      });
     }
 
     // Send back the exam data
-    res.json({
+    return res.json({
       examName: decryptedData.examName,
       questions: decryptedData.questions,
       totalQuestions: decryptedData.totalQuestions,
@@ -72,9 +111,14 @@ const startExam = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Exam start error:', error);
-    res.status(500);
-    throw new Error(error.message || 'Failed to start exam');
+    logger.error('Exam start error:', {
+      message: error.message,
+      stack: error.stack
+    });
+    return res.status(500).json({
+      message: 'Failed to start exam',
+      error: error.message
+    });
   }
 });
 
