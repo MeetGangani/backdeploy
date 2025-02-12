@@ -1,24 +1,17 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import crypto from 'crypto';
-import axios from 'axios';
-import FormData from 'form-data';
 import { ethers } from 'ethers';
 import dotenv from 'dotenv';
 import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import sendEmail from '../utils/emailUtils.js';
-import { 
-  encryptForIPFS, 
-  generateEncryptionKey, 
-  decryptFile,
-  processFile
-} from '../utils/encryptionUtils.js';
+import { processFile } from '../utils/encryptionUtils.js';
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import Upload from '../models/uploadModel.js';
-import { uploadEncryptedToPinata } from '../utils/ipfsUtils.js';
+
 dotenv.config();
 
 // Get the current file's directory
@@ -36,57 +29,7 @@ const provider = new ethers.JsonRpcProvider(process.env.ETHEREUM_RPC_URL);
 const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider);
 const contract = new ethers.Contract(contractAddress, contractABI, wallet);
 
-// Add Pinata configuration
-const PINATA_API_KEY = process.env.PINATA_API_KEY;
-
-const PINATA_SECRET_KEY = process.env.PINATA_SECRET_KEY;
-const PINATA_JWT = process.env.PINATA_JWT;
-
 const logger = createLogger('adminController');
-
-// Function to upload encrypted data to Pinata
-const uploadEncryptedToPinata = async (jsonData) => {
-  try {
-    // Generate a new encryption key for IPFS
-    const ipfsEncryptionKey = generateEncryptionKey();
-    
-    // Encrypt the data
-    const encryptedData = encryptForIPFS(jsonData, ipfsEncryptionKey);
-    
-    const data = JSON.stringify({
-      pinataOptions: {
-        cidVersion: 1
-      },
-      pinataMetadata: {
-        name: `exam_${Date.now()}`,
-        keyvalues: {
-          type: "encrypted_exam",
-          timestamp: encryptedData.timestamp.toString()
-        }
-      },
-      pinataContent: encryptedData // Upload encrypted content
-    });
-
-    const config = {
-      method: 'post',
-      url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${PINATA_JWT}`
-      },
-      data: data
-    };
-
-    const response = await axios(config);
-    return {
-      ipfsHash: response.data.IpfsHash,
-      encryptionKey: ipfsEncryptionKey
-    };
-  } catch (error) {
-    console.error('Pinata upload error:', error);
-    throw new Error('Failed to upload encrypted data to IPFS');
-  }
-};
 
 // @desc    Get all upload requests
 // @route   GET /api/admin/requests
@@ -158,14 +101,12 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     // Send email notification
     try {
       const emailContent = examApprovalTemplate({
+        instituteName: request.institute.name,
         examName: request.examName,
         status: status,
-        adminComment: feedback || '',
-        totalQuestions: request.totalQuestions,
-        timeLimit: 60, // Add your time limit logic here
-        ipfsHash: request.ipfsHash,
-        ipfsEncryptionKey: request.encryptionKey
-      }, status);
+        feedback: feedback || '',
+        totalQuestions: request.totalQuestions
+      });
 
       await sendEmail({
         to: request.institute.email,
