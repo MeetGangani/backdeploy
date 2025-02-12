@@ -51,7 +51,7 @@ const startExam = asyncHandler(async (req, res) => {
     const exam = await Upload.findOne({ 
       ipfsHash,
       status: 'approved' // Only find approved exams
-    }).select('encryptionKey examName timeLimit totalQuestions');
+    }).select('ipfsEncryptionKey examName timeLimit totalQuestions');
     
     if (!exam) {
       logger.error('Exam not found or not approved for IPFS hash:', ipfsHash);
@@ -89,7 +89,6 @@ const startExam = asyncHandler(async (req, res) => {
     // Decrypt using the encryption key from database
     let decryptedData;
     try {
-      // Use the correct encryption key (ipfsEncryptionKey instead of encryptionKey)
       decryptedData = await decryptFromIPFS(encryptedData, exam.ipfsEncryptionKey);
     } catch (decryptError) {
       logger.error('Decryption error:', decryptError);
