@@ -63,7 +63,7 @@ const getRequests = asyncHandler(async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Get requests error:', error);
+    logger.error('Get requests error:', error);
     res.status(500);
     throw new Error('Failed to fetch requests');
   }
@@ -82,6 +82,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       throw new Error('Invalid status');
     }
 
+    // Get the request with institute details
     const request = await Upload.findById(id).populate('institute', 'email name');
     if (!request) {
       res.status(404);
@@ -90,47 +91,67 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
     if (status === 'approved') {
       try {
-        // Encrypt the data
+        logger.info(`Processing approval for exam ${request.examName}`);
+
+        // Generate encryption key
         const encryptionKey = generateEncryptionKey();
-        const encryptedData = encryptForIPFS(request.questions, encryptionKey);
         
-        const data = JSON.stringify({
-          pinataOptions: {
-            cidVersion: 1
-          },
+        // Prepare data for encryption
+        const examData = {
+          examName: request.examName,
+          questions: request.questions,
+          totalQuestions: request.totalQuestions,
+          timestamp: Date.now()
+        };
+
+        // Encrypt the exam data
+        const encryptedData = encryptForIPFS(examData, encryptionKey);
+        logger.info('Exam data encrypted successfully');
+
+        // Prepare data for IPFS
+        const pinataData = {
+          pinataOptions: { cidVersion: 1 },
           pinataMetadata: {
-            name: `exam_${Date.now()}`,
+            name: `exam_${request.examName}_${Date.now()}`,
             keyvalues: {
+              examId: request._id.toString(),
               type: "encrypted_exam",
               timestamp: Date.now().toString()
             }
           },
           pinataContent: encryptedData
-        });
-
-        const config = {
-          method: 'post',
-          url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${PINATA_JWT}`
-          },
-          data: data
         };
 
-        const response = await axios(config);
-        request.ipfsHash = response.data.IpfsHash;
+        // Upload to IPFS via Pinata
+        const pinataResponse = await axios.post(
+          'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+          pinataData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.PINATA_JWT}`
+            }
+          }
+        );
+
+        logger.info('File uploaded to IPFS successfully');
+
+        // Update request with IPFS hash and encryption key
+        request.ipfsHash = pinataResponse.data.IpfsHash;
         request.encryptionKey = encryptionKey;
+        
       } catch (error) {
-        console.error('IPFS upload error:', error);
+        logger.error('Error in approval process:', error);
         res.status(500);
-        throw new Error('Failed to upload to IPFS');
+        throw new Error('Failed to process approval: ' + error.message);
       }
     }
 
+    // Update request status and feedback
     request.status = status;
     request.feedback = feedback || '';
     const updatedRequest = await request.save();
+    logger.info(`Request ${id} status updated to ${status}`);
 
     // Send email notification
     try {
@@ -139,7 +160,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         examName: request.examName,
         status: status,
         feedback: feedback || '',
-        ipfsHash: request.ipfsHash
+        ipfsHash: request.ipfsHash,
+        encryptionKey: request.encryptionKey
       });
 
       await sendEmail({
@@ -147,13 +169,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         subject: `Exam Request ${status.toUpperCase()}`,
         html: emailContent
       });
+      logger.info(`Notification email sent to ${request.institute.email}`);
     } catch (emailError) {
-      console.error('Email sending error:', emailError);
+      logger.error('Email sending error:', emailError);
       // Continue even if email fails
     }
 
     res.json({
-      message: `Request ${status}`,
+      message: `Request ${status} successfully`,
       request: {
         _id: updatedRequest._id,
         examName: updatedRequest.examName,
@@ -162,8 +185,9 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         ipfsHash: updatedRequest.ipfsHash
       }
     });
+
   } catch (error) {
-    console.error('Update status error:', error);
+    logger.error('Update status error:', error);
     res.status(error.status || 500);
     throw new Error(error.message || 'Failed to update request status');
   }
