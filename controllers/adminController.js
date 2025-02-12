@@ -17,6 +17,7 @@ import {
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import Upload from '../models/uploadModel.js';
+import { uploadEncryptedToPinata } from '../utils/ipfsUtils.js';
 dotenv.config();
 
 // Get the current file's directory
@@ -96,7 +97,6 @@ const getRequests = asyncHandler(async (req, res) => {
       .select('-file.data')
       .sort('-createdAt');
 
-    // Get counts
     const totalCount = await Upload.countDocuments();
     const pendingCount = await Upload.countDocuments({ status: 'pending' });
     const approvedCount = await Upload.countDocuments({ status: 'approved' });
@@ -131,18 +131,53 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       throw new Error('Invalid status');
     }
 
-    const request = await Upload.findById(id);
+    const request = await Upload.findById(id).populate('institute', 'email name');
     if (!request) {
       res.status(404);
       throw new Error('Request not found');
     }
 
-    request.status = status;
-    if (feedback) {
-      request.feedback = feedback;
+    if (status === 'approved') {
+      try {
+        // Upload to IPFS only if approving
+        const { ipfsHash, encryptionKey } = await uploadEncryptedToPinata({
+          questions: request.questions,
+          examName: request.examName,
+          totalQuestions: request.totalQuestions
+        });
+
+        request.ipfsHash = ipfsHash;
+        request.encryptionKey = encryptionKey;
+      } catch (ipfsError) {
+        console.error('IPFS upload error:', ipfsError);
+        res.status(500);
+        throw new Error('Failed to upload to IPFS');
+      }
     }
 
+    request.status = status;
+    request.feedback = feedback || '';
     const updatedRequest = await request.save();
+
+    // Send email notification
+    try {
+      const emailContent = examApprovalTemplate({
+        instituteName: request.institute.name,
+        examName: request.examName,
+        status: status,
+        feedback: feedback || '',
+        ipfsHash: request.ipfsHash // Only included for approved requests
+      });
+
+      await sendEmail({
+        to: request.institute.email,
+        subject: `Exam Request ${status.toUpperCase()}`,
+        html: emailContent
+      });
+    } catch (emailError) {
+      console.error('Email sending error:', emailError);
+      // Continue even if email fails
+    }
 
     res.json({
       message: `Request ${status}`,
@@ -150,7 +185,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         _id: updatedRequest._id,
         examName: updatedRequest.examName,
         status: updatedRequest.status,
-        feedback: updatedRequest.feedback
+        feedback: updatedRequest.feedback,
+        ipfsHash: updatedRequest.ipfsHash
       }
     });
   } catch (error) {
