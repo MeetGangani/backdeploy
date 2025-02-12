@@ -1,19 +1,10 @@
 import express from 'express';
 import { protect, adminOnly } from '../middleware/authMiddleware.js';
-import { 
-  getRequests, 
-  updateRequestStatus, 
-  getDashboardStats 
-} from '../controllers/adminController.js';
+import { getRequests, updateRequestStatus } from '../controllers/adminController.js';
 
 const router = express.Router();
 
-// Protect all routes with admin middleware
-router.use(protect);
-router.use(adminOnly);
-
-router.get('/requests', getRequests);
-router.get('/dashboard', getDashboardStats);
-router.put('/requests/:id', updateRequestStatus);
+router.get('/requests', protect, adminOnly, getRequests);
+router.put('/requests/:id', protect, adminOnly, updateRequestStatus);
 
 export default router; 

@@ -46,6 +46,10 @@ const uploadSchema = new mongoose.Schema(
     file: {
       data: Buffer,
       contentType: String
+    },
+    feedback: {
+      type: String,
+      default: ''
     }
   },
   {
