@@ -59,27 +59,27 @@ const googleAuth = passport.authenticate('google', {
   prompt: 'select_account'
 });
 
-const googleAuthCallback = asyncHandler(async (req, res) => {
+const googleCallback = async (req, res) => {
   try {
-    if (!req.user) {
-      throw new Error('Authentication failed');
+    // After successful authentication
+    const frontendURL = process.env.NODE_ENV === 'production'
+      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+      : 'http://localhost:3000';
+
+    if (req.user) {
+      // Authentication successful
+      res.redirect(`${frontendURL}/register?loginSuccess=true`);
+    } else {
+      // Authentication failed
+      res.redirect(`${frontendURL}/register?error=${encodeURIComponent('Google authentication failed')}`);
     }
-
-    // Generate token and set cookie
-    generateToken(res, req.user._id);
-
-    // Redirect to frontend with success parameter
-    res.redirect(process.env.NODE_ENV === 'production' 
-      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app/?loginSuccess=true'
-      : 'http://localhost:3000/?loginSuccess=true'
-    );
   } catch (error) {
-    res.redirect(process.env.NODE_ENV === 'production'
-      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app/login?error=auth_failed'
-      : 'http://localhost:3000/login?error=auth_failed'
-    );
+    const frontendURL = process.env.NODE_ENV === 'production'
+      ? 'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+      : 'http://localhost:3000';
+    res.redirect(`${frontendURL}/register?error=${encodeURIComponent(error.message)}`);
   }
-});
+};
 
 // @desc    Auth user & get token
 // @route   POST /api/users/auth
@@ -205,5 +205,5 @@ export {
   getUserProfile,
   updateUserProfile,
   googleAuth,
-  googleAuthCallback,
+  googleCallback,
 };
