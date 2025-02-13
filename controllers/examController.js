@@ -318,7 +318,8 @@ const getMyResults = asyncHandler(async (req, res) => {
 
     logger.info('Raw results from DB:', results);
 
-    const formattedResults = results.map(result => ({
+    // Ensure we're working with an array
+    const formattedResults = (results || []).map(result => ({
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
