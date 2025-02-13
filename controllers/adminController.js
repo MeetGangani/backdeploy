@@ -151,7 +151,7 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 const updateRequestStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, adminComment } = req.body;
-  let ipfsHash;
+  let ipfsHash, ipfsKey;
 
   try {
     const fileRequest = await FileRequest.findById(id)
@@ -177,21 +177,30 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         let decryptedData;
         try {
           logger.info('Decrypting stored data...');
-          // Convert base64 string back to Buffer if needed
-          const encryptedBuffer = Buffer.from(fileRequest.encryptedData, 'base64');
-          decryptedData = decryptFile(encryptedBuffer, fileRequest.encryptionKey);
+          // Ensure encryptedData is properly formatted
+          if (!fileRequest.encryptedData || !fileRequest.encryptionKey) {
+            throw new Error('Missing encrypted data or encryption key');
+          }
+
+          // Convert stored data to proper format if needed
+          const encryptedDataString = fileRequest.encryptedData.toString();
+          decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
           logger.info('Successfully decrypted data');
         } catch (decryptError) {
           logger.error('Decryption failed:', decryptError);
           throw new Error(`Decryption failed: ${decryptError.message}`);
         }
 
-        // Step 2: Re-encrypt for IPFS
+        // Step 2: Generate new encryption key for IPFS
+        ipfsKey = generateEncryptionKey();
+        logger.info('Generated new IPFS encryption key');
+
+        // Step 3: Encrypt for IPFS
         logger.info('Encrypting for IPFS...');
-        const { encrypted: encryptedForIPFS, encryptionKey: ipfsKey } = await uploadEncryptedToPinata(decryptedData);
+        const encryptedForIPFS = encryptForIPFS(decryptedData, ipfsKey);
         logger.info('Successfully encrypted for IPFS');
 
-        // Step 3: Upload to IPFS via Pinata
+        // Step 4: Prepare and upload to Pinata
         const pinataData = JSON.stringify({
           pinataOptions: { cidVersion: 1 },
           pinataMetadata: {
@@ -221,7 +230,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         fileRequest.ipfsEncryptionKey = ipfsKey;
         logger.info('Successfully uploaded to IPFS:', ipfsHash);
 
-        // Step 4: Send email notification
+        // Step 5: Send email notification
         try {
           await sendEmail({
             to: fileRequest.institute.email,
@@ -240,7 +249,6 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           logger.info('Approval email sent successfully');
         } catch (emailError) {
           logger.error('Email sending error:', emailError);
-          // Continue process even if email fails
         }
 
       } catch (error) {
@@ -278,7 +286,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       message: `Request ${status} successfully`,
       status: fileRequest.status,
       ipfsHash: status === 'approved' ? ipfsHash : undefined,
-      ipfsEncryptionKey: status === 'approved' ? fileRequest.ipfsEncryptionKey : undefined
+      ipfsEncryptionKey: status === 'approved' ? ipfsKey : undefined
     });
 
   } catch (error) {

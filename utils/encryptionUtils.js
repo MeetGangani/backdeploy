@@ -23,15 +23,17 @@ export const encryptFile = (data, secretKey) => {
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
     // Generate IV
-    const iv = CryptoJS.lib.WordArray.random(16);
+    const iv = crypto.randomBytes(16);
     
-    // Encrypt using CryptoJS with IV
-    const encrypted = CryptoJS.AES.encrypt(dataString, secretKey, {
-      iv: iv
-    });
+    // Create cipher
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
     
-    // Return IV and encrypted data concatenated
-    return iv.toString() + ':' + encrypted.toString();
+    // Encrypt the data
+    let encrypted = cipher.update(dataString, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    
+    // Combine IV and encrypted data
+    return `${iv.toString('base64')}:${encrypted}`;
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt file');
@@ -48,17 +50,19 @@ export const decryptFile = (encryptedData, key) => {
       throw new Error('Invalid encrypted data format');
     }
     
-    // Create decryption options with IV
-    const options = {
-      iv: CryptoJS.enc.Hex.parse(ivString)
-    };
+    // Convert IV and key from string format
+    const iv = Buffer.from(ivString, 'base64');
+    const keyBuffer = Buffer.from(key, 'hex');
     
-    // Decrypt using CryptoJS with IV
-    const decrypted = CryptoJS.AES.decrypt(encryptedString, key, options);
+    // Create decipher
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     
-    // Convert to string and parse JSON
-    const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
-    return JSON.parse(decryptedString);
+    // Decrypt the data
+    let decrypted = decipher.update(encryptedString, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    // Parse the decrypted JSON
+    return JSON.parse(decrypted);
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error(`Failed to decrypt file: ${error.message}`);
@@ -71,22 +75,20 @@ export const encryptForIPFS = (data, key) => {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    // Convert the hex key to bytes
-    const keyBytes = Buffer.from(key, 'hex');
-    
     // Generate IV
     const iv = crypto.randomBytes(16);
     
     // Create cipher
-    const cipher = crypto.createCipheriv('aes-256-cbc', keyBytes, iv);
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(key, 'hex'), iv);
     
     // Encrypt the data
-    let encryptedData = cipher.update(dataString, 'utf8', 'base64');
-    encryptedData += cipher.final('base64');
+    let encrypted = cipher.update(dataString, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
     
     return {
       iv: iv.toString('base64'),
-      encryptedData: encryptedData
+      encryptedData: encrypted,
+      timestamp: Date.now()
     };
   } catch (error) {
     console.error('IPFS encryption error:', error);
@@ -94,23 +96,17 @@ export const encryptForIPFS = (data, key) => {
   }
 };
 
-// Decrypt data from IPFS
+// Decrypt from IPFS
 export const decryptFromIPFS = (encryptedObject, key) => {
   try {
-    // Convert the hex key to bytes
-    const keyBytes = Buffer.from(key, 'hex');
-    
-    // Convert base64 IV back to buffer
     const iv = Buffer.from(encryptedObject.iv, 'base64');
+    const keyBuffer = Buffer.from(key, 'hex');
     
-    // Create decipher
-    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBytes, iv);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     
-    // Decrypt the data
     let decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     
-    // Parse the decrypted JSON
     return JSON.parse(decrypted);
   } catch (error) {
     console.error('IPFS decryption error:', error);
@@ -140,5 +136,10 @@ export const processFile = (buffer) => {
 // Single export statement for all functions
 export {
   jsonToBinary,
-  binaryToJson
+  binaryToJson,
+  encryptFile,
+  decryptFile,
+  encryptForIPFS,
+  decryptFromIPFS,
+  generateEncryptionKey
 };
