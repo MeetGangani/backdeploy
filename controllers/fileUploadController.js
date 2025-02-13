@@ -17,7 +17,13 @@ const processFile = (buffer) => {
     // Encrypt the JSON data
     const encrypted = encryptFile(JSON.stringify(jsonContent), encryptionKey);
     
-    return { encrypted, encryptionKey };
+    // Convert encrypted data to Buffer if it isn't already
+    const encryptedBuffer = Buffer.from(encrypted);
+    
+    return { 
+      encrypted: encryptedBuffer,
+      encryptionKey 
+    };
   } catch (error) {
     console.error('File processing error:', error);
     throw new Error('Failed to process file');
@@ -60,18 +66,20 @@ const uploadFile = asyncHandler(async (req, res) => {
     const { encrypted, encryptionKey } = processFile(file.buffer);
 
     // Create a new file request with all required fields
-    const fileRequest = await FileRequest.create({
+    const fileRequest = new FileRequest({
       institute: req.user._id,
       submittedBy: req.user._id,
       examName,
       description,
       status: 'pending',
-      encryptedData: encrypted,
+      encryptedData: encrypted.toString('base64'), // Convert to base64 string
       encryptionKey: encryptionKey,
       ipfsEncryptionKey: encryptionKey,
       totalQuestions: jsonContent.questions.length,
       timeLimit: 60 // default time limit in minutes
     });
+
+    await fileRequest.save();
 
     res.status(201).json({
       message: 'File uploaded successfully',

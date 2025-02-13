@@ -40,7 +40,7 @@ const fileRequestSchema = new mongoose.Schema({
     default: 'pending'
   },
   encryptedData: {
-    type: Buffer,
+    type: String,
     required: true
   },
   encryptionKey: {
