@@ -22,18 +22,36 @@ const encryptFile = (data, secretKey) => {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    // Create CryptoJS word array from the key
-    const keyWordArray = CryptoJS.enc.Hex.parse(secretKey);
+    // Ensure the key is the correct length (32 bytes = 256 bits)
+    const keyBytes = Buffer.from(secretKey, 'hex');
+    if (keyBytes.length !== 32) {
+      throw new Error('Invalid key length');
+    }
+
+    // Create a WordArray from the key bytes
+    const key = CryptoJS.lib.WordArray.create(keyBytes);
     
-    // Generate salt and encrypt
-    const encrypted = CryptoJS.AES.encrypt(dataString, keyWordArray, {
+    // Generate a random IV
+    const iv = CryptoJS.lib.WordArray.random(16);
+    
+    // Encrypt using CryptoJS
+    const encrypted = CryptoJS.AES.encrypt(dataString, key, {
+      iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });
     
-    return encrypted.toString();
+    // Combine IV and encrypted data
+    const combined = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+    
+    return combined;
   } catch (error) {
-    console.error('Encryption error:', error);
+    console.error('Encryption error details:', {
+      error: error.message,
+      stack: error.stack,
+      keyLength: secretKey?.length,
+      dataType: typeof data
+    });
     throw new Error('Failed to encrypt file');
   }
 };
@@ -46,11 +64,22 @@ const decryptFile = (encryptedData, key) => {
       encryptedDataSample: encryptedData.substring(0, 100)
     });
 
-    // Create CryptoJS word array from the key
-    const keyWordArray = CryptoJS.enc.Hex.parse(key);
+    // Split IV and encrypted data
+    const [ivString, encryptedString] = encryptedData.split(':');
+    if (!ivString || !encryptedString) {
+      throw new Error('Invalid encrypted data format');
+    }
+
+    // Convert key to WordArray
+    const keyBytes = Buffer.from(key, 'hex');
+    const keyWordArray = CryptoJS.lib.WordArray.create(keyBytes);
+
+    // Convert IV from Base64
+    const iv = CryptoJS.enc.Base64.parse(ivString);
     
     // Decrypt using CryptoJS
-    const decrypted = CryptoJS.AES.decrypt(encryptedData, keyWordArray, {
+    const decrypted = CryptoJS.AES.decrypt(encryptedString, keyWordArray, {
+      iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });

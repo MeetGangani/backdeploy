@@ -59,14 +59,29 @@ const uploadFile = asyncHandler(async (req, res) => {
 
   try {
     // Parse and validate the JSON content
-    const jsonContent = JSON.parse(file.buffer.toString());
-    validateQuestionFormat(jsonContent.questions);
+    let jsonContent;
+    try {
+      jsonContent = JSON.parse(file.buffer.toString());
+      validateQuestionFormat(jsonContent.questions);
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError);
+      res.status(400);
+      throw new Error('Invalid JSON format in uploaded file');
+    }
 
     // Generate encryption key
     const encryptionKey = generateEncryptionKey();
+    console.log('Generated key length:', encryptionKey.length);
     
     // Encrypt the JSON data
-    const encryptedData = encryptFile(jsonContent, encryptionKey);
+    let encryptedData;
+    try {
+      encryptedData = encryptFile(jsonContent, encryptionKey);
+      console.log('Encryption successful');
+    } catch (encryptError) {
+      console.error('Encryption failed:', encryptError);
+      throw new Error('Failed to encrypt file data');
+    }
 
     // Create a new file request
     const fileRequest = new FileRequest({
@@ -75,8 +90,8 @@ const uploadFile = asyncHandler(async (req, res) => {
       examName,
       description,
       status: 'pending',
-      encryptedData: encryptedData, // Store the encrypted string directly
-      encryptionKey: encryptionKey,
+      encryptedData,
+      encryptionKey,
       totalQuestions: jsonContent.questions.length,
       timeLimit: 60
     });
