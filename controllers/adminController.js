@@ -88,24 +88,33 @@ const uploadEncryptedToPinata = async (jsonData) => {
 // Get all file requests
 const getRequests = asyncHandler(async (req, res) => {
   try {
-    // Fetch all requests, including pending ones
+    // Fetch all requests, including pending ones, with populated institute info
     const requests = await FileRequest.find()
-      .populate('institute', 'name email')
+      .populate({
+        path: 'institute',
+        select: 'name email'
+      })
+      .populate({
+        path: 'submittedBy',
+        select: 'name email'
+      })
       .sort('-createdAt')
       .lean();
 
-    // Ensure we're always returning an array
-    const formattedRequests = Array.isArray(requests) ? requests.map(request => ({
+    // Format the requests with all necessary fields
+    const formattedRequests = requests.map(request => ({
       _id: request._id,
-      fileName: request.examName,
+      examName: request.examName,
+      description: request.description,
       institute: request.institute,
+      submittedBy: request.submittedBy,
       status: request.status,
       createdAt: request.createdAt,
       totalQuestions: request.totalQuestions,
-      description: request.description,
       resultsReleased: request.resultsReleased || false
-    })) : [];
+    }));
 
+    console.log('Fetched requests:', formattedRequests); // Debug log
     res.json(formattedRequests);
   } catch (error) {
     console.error('Error fetching requests:', error);
