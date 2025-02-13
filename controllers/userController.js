@@ -147,7 +147,7 @@ const registerUser = asyncHandler(async (req, res) => {
 // @desc    Logout user / clear cookie
 // @route   POST /api/users/logout
 // @access  Public
-const logout = asyncHandler(async (req, res) => {
+const logoutUser = asyncHandler(async (req, res) => {
   try {
     // Clear the JWT cookie
     res.cookie('jwt', '', {
@@ -248,7 +248,7 @@ const checkAuth = asyncHandler(async (req, res) => {
 export {
   authUser,
   registerUser,
-  logout,
+  logoutUser,
   getUserProfile,
   updateUserProfile,
   googleAuth,
