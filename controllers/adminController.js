@@ -9,11 +9,12 @@ import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import sendEmail from '../utils/emailUtils.js';
-import { encryptForIPFS, generateEncryptionKey, decryptFile, binaryToJson } from '../utils/encryptionUtils.js';
-import { examApprovalTemplate } from '../utils/emailTemplates.js';
-import { createLogger } from '../utils/logger.js';
-import Upload from '../models/uploadModel.js';
-
+import { 
+  encryptForIPFS, 
+  generateEncryptionKey, 
+  decryptFile
+} from '../utils/encryptionUtils.js';
+import { Button } from 'react-bootstrap';
 dotenv.config();
 
 // Get the current file's directory
@@ -33,99 +34,171 @@ const contract = new ethers.Contract(contractAddress, contractABI, wallet);
 
 // Add Pinata configuration
 const PINATA_API_KEY = process.env.PINATA_API_KEY;
+
 const PINATA_SECRET_KEY = process.env.PINATA_SECRET_KEY;
 const PINATA_JWT = process.env.PINATA_JWT;
 
-const logger = createLogger('adminController');
+// Function to upload encrypted data to Pinata
+const uploadEncryptedToPinata = async (jsonData) => {
+  try {
+    // Generate a new encryption key for IPFS
+    const ipfsEncryptionKey = generateEncryptionKey();
+    
+    // Encrypt the data
+    const encryptedData = encryptForIPFS(jsonData, ipfsEncryptionKey);
+    
+    const data = JSON.stringify({
+      pinataOptions: {
+        cidVersion: 1
+      },
+      pinataMetadata: {
+        name: `exam_${Date.now()}`,
+        keyvalues: {
+          type: "encrypted_exam",
+          timestamp: encryptedData.timestamp.toString()
+        }
+      },
+      pinataContent: encryptedData // Upload encrypted content
+    });
 
-// @desc    Get all upload requests
-// @route   GET /api/admin/requests
-// @access  Private/Admin
+    const config = {
+      method: 'post',
+      url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PINATA_JWT}`
+      },
+      data: data
+    };
+
+    const response = await axios(config);
+    return {
+      ipfsHash: response.data.IpfsHash,
+      encryptionKey: ipfsEncryptionKey
+    };
+  } catch (error) {
+    console.error('Pinata upload error:', error);
+    throw new Error('Failed to upload encrypted data to IPFS');
+  }
+};
+
+// Get all file requests
 const getRequests = asyncHandler(async (req, res) => {
   try {
-    const requests = await Upload.find()
+    const requests = await FileRequest.find()
       .populate('institute', 'name email')
-      .select('-file.data')
-      .sort('-createdAt');
+      .sort('-createdAt')
+      .lean();
 
-    const totalCount = await Upload.countDocuments();
-    const pendingCount = await Upload.countDocuments({ status: 'pending' });
-    const approvedCount = await Upload.countDocuments({ status: 'approved' });
-    const rejectedCount = await Upload.countDocuments({ status: 'rejected' });
+    // Format the response data
+    const formattedRequests = requests.map(request => ({
+      _id: request._id,
+      fileName: request.examName, // Using examName as fileName
+      institute: request.institute,
+      status: request.status,
+      createdAt: request.createdAt,
+      totalQuestions: request.totalQuestions,
+      resultsReleased: request.resultsReleased
+    }));
 
-    res.json({
-      requests,
-      stats: {
-        total: totalCount,
-        pending: pendingCount,
-        approved: approvedCount,
-        rejected: rejectedCount
-      }
-    });
+    res.json(formattedRequests);
   } catch (error) {
-    logger.error('Get requests error:', error);
+    console.error('Error fetching requests:', error);
     res.status(500);
     throw new Error('Failed to fetch requests');
   }
 });
 
-// @desc    Update request status
-// @route   PUT /api/admin/requests/:id
-// @access  Private/Admin
-const updateRequestStatus = asyncHandler(async (req, res) => {
+// Get dashboard statistics
+const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status, feedback } = req.body;
+    const [
+      totalRequests,
+      pendingRequests,
+      approvedRequests,
+      rejectedRequests
+    ] = await Promise.all([
+      FileRequest.countDocuments(),
+      FileRequest.countDocuments({ status: 'pending' }),
+      FileRequest.countDocuments({ status: 'approved' }),
+      FileRequest.countDocuments({ status: 'rejected' })
+    ]);
+
+    res.json({
+      totalRequests,
+      pendingRequests,
+      approvedRequests,
+      rejectedRequests
+    });
+  } catch (error) {
+    console.error('Error fetching stats:', error);
+    res.status(500);
+    throw new Error('Failed to fetch dashboard statistics');
+  }
+});
+
+// Update request status
+const updateRequestStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, adminComment } = req.body;
+  let ipfsHash;
+
+  try {
+    // Fetch request with populated institute details
+    const fileRequest = await FileRequest.findById(id)
+      .populate('institute', 'name email')
+      .exec();
+    
+    if (!fileRequest) {
+      res.status(404);
+      throw new Error('Request not found');
+    }
 
     if (!['approved', 'rejected'].includes(status)) {
       res.status(400);
       throw new Error('Invalid status');
     }
 
-    // Get the request with institute details
-    const request = await FileRequest.findById(id).populate('institute', 'email name');
-    if (!request) {
-      res.status(404);
-      throw new Error('Request not found');
+    // Check if institute exists and has an email before proceeding
+    if (!fileRequest.institute || !fileRequest.institute.email) {
+      throw new Error('Institute details not found');
     }
 
     if (status === 'approved') {
       try {
-        logger.info(`Processing approval for exam ${request.examName}`);
-
-        // Convert stored binary data back to JSON
-        const decryptedData = decryptFile(request.encryptedData, request.encryptionKey);
-        const examData = binaryToJson(decryptedData);
-
-        // Generate new encryption key for IPFS
-        const ipfsEncryptionKey = generateEncryptionKey();
-
-        // Prepare and encrypt data for IPFS
-        const ipfsData = {
-          examName: examData.examName,
-          questions: examData.questions,
-          totalQuestions: examData.totalQuestions,
-          timeLimit: examData.timeLimit,
-          timestamp: Date.now()
-        };
-
-        const encryptedIPFSData = encryptForIPFS(ipfsData, ipfsEncryptionKey);
-
-        // Prepare metadata for IPFS
-        const pinataData = {
-          pinataOptions: { cidVersion: 1 },
+        console.log('Starting approval process...');
+        
+        // First decrypt the stored data
+        let decryptedData;
+        try {
+          console.log('Decrypting stored data...');
+          decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
+          console.log('Successfully decrypted data');
+        } catch (decryptError) {
+          console.error('Decryption failed:', decryptError);
+          throw new Error(`Decryption failed: ${decryptError.message}`);
+        }
+        
+        // Encrypt for IPFS
+        console.log('Encrypting for IPFS...');
+        const encryptedForIPFS = encryptForIPFS(decryptedData, fileRequest.ipfsEncryptionKey);
+        console.log('Successfully encrypted for IPFS');
+        
+        // Prepare data for Pinata
+        const pinataData = JSON.stringify({
+          pinataOptions: {
+            cidVersion: 1
+          },
           pinataMetadata: {
-            name: `exam_${examData.examName}_${Date.now()}`,
+            name: `exam_${fileRequest.examName}_${Date.now()}`,
             keyvalues: {
-              examId: request._id.toString(),
-              type: "encrypted_exam",
-              timestamp: Date.now().toString()
+              type: "encrypted_exam"
             }
           },
-          pinataContent: encryptedIPFSData
-        };
+          pinataContent: encryptedForIPFS
+        });
 
-        // Upload to IPFS
+        console.log('Uploading to Pinata...');
         const pinataResponse = await axios.post(
           'https://api.pinata.cloud/pinning/pinJSONToIPFS',
           pinataData,
@@ -137,60 +210,80 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           }
         );
 
-        logger.info('File uploaded to IPFS successfully');
-
-        // Update request with IPFS data
-        request.ipfsHash = pinataResponse.data.IpfsHash;
-        request.ipfsEncryptionKey = ipfsEncryptionKey;
+        ipfsHash = pinataResponse.data.IpfsHash;
+        fileRequest.ipfsHash = ipfsHash;
+        
+        console.log('Successfully uploaded to IPFS:', ipfsHash);
       } catch (error) {
-        logger.error('Error in approval process:', error);
-        throw new Error('Failed to process approval: ' + error.message);
+        console.error('IPFS upload error:', error);
+        throw new Error(`IPFS upload failed: ${error.message}`);
       }
     }
 
-    // Update request status
-    request.status = status;
-    request.feedback = feedback;
-    request.reviewedBy = req.user._id;
-    request.reviewedAt = Date.now();
+    fileRequest.status = status;
+    fileRequest.adminComment = adminComment;
+    fileRequest.reviewedAt = Date.now();
+    fileRequest.reviewedBy = req.user._id;
 
-    const updatedRequest = await request.save();
+    await fileRequest.save();
 
     // Send email notification
     try {
-      const emailContent = examApprovalTemplate({
-        instituteName: request.institute.name,
-        examName: request.examName,
-        status,
-        feedback,
-        ipfsHash: request.ipfsHash,
-        encryptionKey: request.ipfsEncryptionKey
-      });
-
       await sendEmail({
-        to: request.institute.email,
+        to: fileRequest.institute.email,
         subject: `Exam Request ${status.toUpperCase()}`,
-        html: emailContent
+        text: status === 'approved' ? 
+          `
+          Exam Request Update
+          
+          Your exam request for "${fileRequest.examName}" has been approved.
+          
+          Important Details:
+          - IPFS Hash: ${ipfsHash}
+          - Exam Name: ${fileRequest.examName}
+          - Total Questions: ${fileRequest.totalQuestions}
+          - Time Limit: ${fileRequest.timeLimit} minutes
+          - IPFS Encryption Key: ${fileRequest.ipfsEncryptionKey}
+          
+          ${adminComment ? `Admin Comment: ${adminComment}` : ''}
+          
+          Your exam has been successfully encrypted and uploaded to IPFS.
+          Please save both the IPFS Hash and Encryption Key as they will be needed for students to access the exam.
+          
+          Note: Keep this information secure and share only with authorized students.
+          ` :
+          `
+          Exam Request Update
+          
+          Your exam request for "${fileRequest.examName}" has been rejected.
+          ${adminComment ? `\nAdmin Comment: ${adminComment}` : ''}
+          
+          If you have any questions, please contact the administrator.
+          `
       });
+      
+      console.log('Email sent successfully');
     } catch (emailError) {
-      logger.error('Email sending error:', emailError);
+      console.error('Email sending error:', emailError);
+      // Don't throw error here, just log it
     }
 
     res.json({
-      message: `Request ${status} successfully`,
-      request: {
-        _id: updatedRequest._id,
-        examName: updatedRequest.examName,
-        status: updatedRequest.status,
-        feedback: updatedRequest.feedback,
-        ipfsHash: updatedRequest.ipfsHash
-      }
+      message: `Request ${status}`,
+      requestId: fileRequest._id,
+      status: fileRequest.status,
+      ipfsHash: status === 'approved' ? ipfsHash : undefined
     });
 
   } catch (error) {
-    logger.error('Update status error:', error);
-    throw new Error(error.message || 'Failed to update request status');
+    console.error('Status update error:', error);
+    res.status(500);
+    throw new Error(`Failed to process ${status}: ${error.message}`);
   }
 });
 
-export { getRequests, updateRequestStatus }; 
+export {
+  getRequests,
+  updateRequestStatus,
+  getDashboardStats
+}; 
