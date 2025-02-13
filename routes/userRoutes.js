@@ -49,4 +49,21 @@ router.get('/auth/google/callback',
 // Add check-auth route
 router.get('/check-auth', checkAuth);
 
+// Add this route to handle admin requests
+router.get('/admin/requests', protect, adminOnly, async (req, res) => {
+  try {
+    // Return empty data for now
+    res.json({
+      requests: [],
+      stats: {
+        totalRequests: 0,
+        pendingRequests: 0,
+        approvedRequests: 0
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 export default router;

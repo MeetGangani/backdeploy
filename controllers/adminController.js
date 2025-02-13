@@ -88,20 +88,22 @@ const uploadEncryptedToPinata = async (jsonData) => {
 // Get all file requests
 const getRequests = asyncHandler(async (req, res) => {
   try {
+    // Fetch all requests, including pending ones
     const requests = await FileRequest.find()
       .populate('institute', 'name email')
       .sort('-createdAt')
       .lean();
 
-    // Format the response data
+    // Make sure we're returning all necessary fields
     const formattedRequests = requests.map(request => ({
       _id: request._id,
-      fileName: request.examName, // Using examName as fileName
+      fileName: request.examName,
       institute: request.institute,
       status: request.status,
       createdAt: request.createdAt,
       totalQuestions: request.totalQuestions,
-      resultsReleased: request.resultsReleased
+      description: request.description,
+      resultsReleased: request.resultsReleased || false
     }));
 
     res.json(formattedRequests);
