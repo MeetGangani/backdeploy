@@ -21,6 +21,11 @@ const fileRequestSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  submittedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
   examName: {
     type: String,
     required: true
@@ -54,11 +59,6 @@ const fileRequestSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  submittedBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
   adminComment: {
     type: String
   },
@@ -75,7 +75,7 @@ const fileRequestSchema = new mongoose.Schema({
   },
   timeLimit: {
     type: Number,
-    default: 60 // 60 minutes default
+    default: 60
   },
   questions: [questionSchema] // Will be populated after decryption
 }, {

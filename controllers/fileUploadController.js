@@ -59,15 +59,18 @@ const uploadFile = asyncHandler(async (req, res) => {
     // Process and encrypt the file
     const { encrypted, encryptionKey } = processFile(file.buffer);
 
-    // Create a new file request
+    // Create a new file request with all required fields
     const fileRequest = await FileRequest.create({
-      institute: req.user._id,  // Use institute instead of submittedBy
+      institute: req.user._id,
+      submittedBy: req.user._id,
       examName,
       description,
       status: 'pending',
       encryptedData: encrypted,
-      ipfsEncryptionKey: encryptionKey, // Add the encryption key
-      totalQuestions: jsonContent.questions.length
+      encryptionKey: encryptionKey,
+      ipfsEncryptionKey: encryptionKey,
+      totalQuestions: jsonContent.questions.length,
+      timeLimit: 60 // default time limit in minutes
     });
 
     res.status(201).json({
