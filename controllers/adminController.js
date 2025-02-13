@@ -149,13 +149,14 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 
 // Update request status
 const updateRequestStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, adminComment } = req.body;
+  let ipfsHash;
+
   try {
-    const { id } = req.params;
-    const { status, adminComment } = req.body;
-
-    console.log('Updating request:', id, status, adminComment); // Debug log
-
-    const fileRequest = await FileRequest.findById(id);
+    const fileRequest = await FileRequest.findById(id)
+      .populate('institute', 'name email')
+      .exec();
     
     if (!fileRequest) {
       res.status(404);
@@ -167,6 +168,105 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       throw new Error('Invalid status');
     }
 
+    // Process IPFS upload only for approved requests
+    if (status === 'approved') {
+      try {
+        logger.info('Starting approval process...');
+        
+        // Step 1: Decrypt the stored data
+        let decryptedData;
+        try {
+          logger.info('Decrypting stored data...');
+          // Convert base64 string back to Buffer if needed
+          const encryptedBuffer = Buffer.from(fileRequest.encryptedData, 'base64');
+          decryptedData = decryptFile(encryptedBuffer, fileRequest.encryptionKey);
+          logger.info('Successfully decrypted data');
+        } catch (decryptError) {
+          logger.error('Decryption failed:', decryptError);
+          throw new Error(`Decryption failed: ${decryptError.message}`);
+        }
+
+        // Step 2: Re-encrypt for IPFS
+        logger.info('Encrypting for IPFS...');
+        const { encrypted: encryptedForIPFS, encryptionKey: ipfsKey } = await uploadEncryptedToPinata(decryptedData);
+        logger.info('Successfully encrypted for IPFS');
+
+        // Step 3: Upload to IPFS via Pinata
+        const pinataData = JSON.stringify({
+          pinataOptions: { cidVersion: 1 },
+          pinataMetadata: {
+            name: `exam_${fileRequest.examName}_${Date.now()}`,
+            keyvalues: { 
+              type: "encrypted_exam",
+              examName: fileRequest.examName
+            }
+          },
+          pinataContent: encryptedForIPFS
+        });
+
+        logger.info('Uploading to Pinata...');
+        const pinataResponse = await axios.post(
+          'https://api.pinata.cloud/pinning/pinJSONToIPFS',
+          pinataData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${PINATA_JWT}`
+            }
+          }
+        );
+
+        ipfsHash = pinataResponse.data.IpfsHash;
+        fileRequest.ipfsHash = ipfsHash;
+        fileRequest.ipfsEncryptionKey = ipfsKey;
+        logger.info('Successfully uploaded to IPFS:', ipfsHash);
+
+        // Step 4: Send email notification
+        try {
+          await sendEmail({
+            to: fileRequest.institute.email,
+            subject: `Exam Request APPROVED - ${fileRequest.examName}`,
+            html: examApprovalTemplate({
+              instituteName: fileRequest.institute.name,
+              examName: fileRequest.examName,
+              status: 'approved',
+              ipfsHash,
+              ipfsEncryptionKey: ipfsKey,
+              totalQuestions: fileRequest.totalQuestions,
+              timeLimit: fileRequest.timeLimit,
+              adminComment
+            })
+          });
+          logger.info('Approval email sent successfully');
+        } catch (emailError) {
+          logger.error('Email sending error:', emailError);
+          // Continue process even if email fails
+        }
+
+      } catch (error) {
+        logger.error('IPFS process error:', error);
+        throw new Error(`IPFS process failed: ${error.message}`);
+      }
+    } else if (status === 'rejected') {
+      // Send rejection email
+      try {
+        await sendEmail({
+          to: fileRequest.institute.email,
+          subject: `Exam Request REJECTED - ${fileRequest.examName}`,
+          html: examApprovalTemplate({
+            instituteName: fileRequest.institute.name,
+            examName: fileRequest.examName,
+            status: 'rejected',
+            adminComment
+          })
+        });
+        logger.info('Rejection email sent successfully');
+      } catch (emailError) {
+        logger.error('Email sending error:', emailError);
+      }
+    }
+
+    // Update request status
     fileRequest.status = status;
     fileRequest.adminComment = adminComment;
     fileRequest.reviewedAt = Date.now();
@@ -174,18 +274,17 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
     await fileRequest.save();
 
-    // Set proper headers
-    res.setHeader('Content-Type', 'application/json');
-    
     res.json({
       message: `Request ${status} successfully`,
       status: fileRequest.status,
-      id: fileRequest._id
+      ipfsHash: status === 'approved' ? ipfsHash : undefined,
+      ipfsEncryptionKey: status === 'approved' ? fileRequest.ipfsEncryptionKey : undefined
     });
+
   } catch (error) {
-    console.error('Error updating request status:', error);
+    logger.error('Status update error:', error);
     res.status(500).json({
-      message: 'Failed to update request status',
+      message: `Failed to process ${status}`,
       error: error.message
     });
   }
