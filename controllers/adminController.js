@@ -66,8 +66,6 @@ const uploadEncryptedToPinata = async (jsonData) => {
       pinataContent: encryptedData
     });
 
-    logger.info('Sending request to Pinata');
-
     const config = {
       method: 'post',
       url: 'https://api.pinata.cloud/pinning/pinJSONToIPFS',
@@ -80,6 +78,10 @@ const uploadEncryptedToPinata = async (jsonData) => {
 
     const response = await axios(config);
     
+    if (!response.data || !response.data.IpfsHash) {
+      throw new Error('Invalid response from Pinata');
+    }
+
     logger.info('Pinata upload successful', {
       ipfsHash: response.data.IpfsHash
     });

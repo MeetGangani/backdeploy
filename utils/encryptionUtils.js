@@ -23,17 +23,17 @@ const encryptFile = (data, secretKey) => {
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
     // Generate IV
-    const iv = CryptoJS.lib.WordArray.random(16);
+    const iv = crypto.randomBytes(16);
     
-    // Encrypt using AES-256-CBC
-    const encrypted = CryptoJS.AES.encrypt(dataString, secretKey, {
-      iv: iv,
-      mode: CryptoJS.mode.CBC,
-      padding: CryptoJS.pad.Pkcs7
-    });
+    // Create cipher
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey, 'hex'), iv);
     
-    // Return IV and encrypted data concatenated
-    return iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
+    // Encrypt the data
+    let encrypted = cipher.update(dataString, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    
+    // Combine IV and encrypted data
+    return iv.toString('base64') + ':' + encrypted;
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt file');
@@ -51,32 +51,23 @@ const decryptFile = (encryptedData, key) => {
       throw new Error('Invalid encrypted data format');
     }
 
-    // Convert key to proper format
-    const keyBytes = Buffer.from(key, 'hex');
-    const keyWordArray = CryptoJS.lib.WordArray.create(keyBytes);
+    // Convert IV and key from strings
+    const iv = Buffer.from(ivString, 'base64');
+    const keyBuffer = Buffer.from(key, 'hex');
 
-    // Convert IV from Base64
-    const iv = CryptoJS.enc.Base64.parse(ivString);
+    // Create decipher
+    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     
     // Decrypt data
-    const decrypted = CryptoJS.AES.decrypt(encryptedString, keyWordArray, {
-      iv: iv,
-      mode: CryptoJS.mode.CBC,
-      padding: CryptoJS.pad.Pkcs7
-    });
-    
-    // Convert to string and validate
-    const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
-    if (!decryptedString) {
-      throw new Error('Decryption resulted in empty string');
-    }
+    let decrypted = decipher.update(encryptedString, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
     
     // Parse JSON if possible
     try {
-      return JSON.parse(decryptedString);
+      return JSON.parse(decrypted);
     } catch (parseError) {
-      console.log('Returning raw decrypted string as JSON parsing failed');
-      return decryptedString;
+      console.log('Returning raw decrypted string');
+      return decrypted;
     }
   } catch (error) {
     console.error('Decryption error:', {
@@ -87,32 +78,30 @@ const decryptFile = (encryptedData, key) => {
   }
 };
 
-// Encrypt for IPFS with better error handling
+// Encrypt for IPFS
 const encryptForIPFS = (data, key) => {
   try {
     // Ensure data is properly stringified
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    // Convert key to proper format
+    // Convert key to buffer
     const keyBuffer = Buffer.from(key, 'hex');
-    if (keyBuffer.length !== 32) {
-      throw new Error('Invalid encryption key length');
-    }
-
+    
     // Generate IV
     const iv = crypto.randomBytes(16);
     
-    // Create cipher and encrypt
+    // Create cipher
     const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+    
+    // Encrypt data
     let encrypted = cipher.update(dataString, 'utf8', 'base64');
     encrypted += cipher.final('base64');
     
-    // Return encrypted data with metadata
     return {
       iv: iv.toString('base64'),
       encryptedData: encrypted,
       timestamp: Date.now(),
-      version: '1.0' // Add version for future compatibility
+      version: '1.0'
     };
   } catch (error) {
     console.error('IPFS encryption error:', error);
