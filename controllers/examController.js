@@ -39,15 +39,33 @@ const startExam = asyncHandler(async (req, res) => {
   try {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // Find the exam using IPFS hash
+    // First, let's check if the hash exists and log what we find
     const exam = await FileRequest.findOne({
-      ipfsHash,
-      status: 'approved'
+      ipfsHash: ipfsHash.trim()  // Add trim() to handle any whitespace
     });
 
+    // Log the exam search result
+    logger.info('Exam search result:', {
+      found: !!exam,
+      examDetails: exam ? {
+        id: exam._id,
+        status: exam.status,
+        ipfsHash: exam.ipfsHash
+      } : null
+    });
+
+    // If no exam found, throw detailed error
     if (!exam) {
+      logger.error(`No exam found with IPFS hash: ${ipfsHash}`);
       res.status(404);
-      throw new Error('Exam not found or not approved');
+      throw new Error('Exam not found with the provided IPFS hash');
+    }
+
+    // If exam is not approved, throw detailed error
+    if (exam.status !== 'approved') {
+      logger.error(`Exam found but status is ${exam.status}, not approved`);
+      res.status(400);
+      throw new Error(`Exam is not approved (current status: ${exam.status})`);
     }
 
     // Check if student has already attempted this exam
@@ -57,9 +75,27 @@ const startExam = asyncHandler(async (req, res) => {
     });
 
     if (existingAttempt) {
+      logger.error(`Student ${req.user._id} has already attempted exam ${exam._id}`);
       res.status(400);
       throw new Error('You have already attempted this exam');
     }
+
+    // Create initial exam response record
+    const examResponse = await ExamResponse.create({
+      student: req.user._id,
+      exam: exam._id,
+      answers: {},
+      score: 0,
+      correctAnswers: 0,
+      totalQuestions: exam.totalQuestions,
+      status: 'in-progress'
+    });
+
+    logger.info('Created exam response record:', {
+      responseId: examResponse._id,
+      examId: exam._id,
+      studentId: req.user._id
+    });
 
     try {
       logger.info('Fetching exam data from IPFS...');
@@ -67,6 +103,7 @@ const startExam = asyncHandler(async (req, res) => {
       const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
       
       if (!response.data || !response.data.iv || !response.data.encryptedData) {
+        logger.error('Invalid IPFS data format:', response.data);
         throw new Error('Invalid data format from IPFS');
       }
 
@@ -75,11 +112,13 @@ const startExam = asyncHandler(async (req, res) => {
       const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
       
       if (!decryptedData || !decryptedData.questions) {
+        logger.error('Invalid decrypted data structure');
         throw new Error('Invalid exam data structure');
       }
 
       // Validate questions format
       if (!Array.isArray(decryptedData.questions)) {
+        logger.error('Questions is not an array:', typeof decryptedData.questions);
         throw new Error('Invalid questions format');
       }
 
@@ -95,19 +134,31 @@ const startExam = asyncHandler(async (req, res) => {
         examName: exam.examName,
         timeLimit: exam.timeLimit,
         totalQuestions: exam.totalQuestions,
-        questions: sanitizedQuestions
+        questions: sanitizedQuestions,
+        examResponseId: examResponse._id // Include the response ID for submission
       });
 
     } catch (error) {
-      logger.error('Exam preparation error:', error);
+      // If there's an error, clean up the exam response
+      await ExamResponse.findByIdAndDelete(examResponse._id);
+      
+      logger.error('Exam preparation error:', {
+        error: error.message,
+        stack: error.stack,
+        examId: exam._id
+      });
       res.status(500);
-      throw new Error('Failed to prepare exam content');
+      throw new Error(`Failed to prepare exam content: ${error.message}`);
     }
 
   } catch (error) {
-    logger.error('Start exam error:', error);
+    logger.error('Start exam error:', {
+      error: error.message,
+      stack: error.stack,
+      ipfsHash
+    });
     res.status(error.status || 500);
-    throw new Error(`Failed to start exam: ${error.message}`);
+    throw new Error(error.message);
   }
 });
 
