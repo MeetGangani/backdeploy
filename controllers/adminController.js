@@ -88,20 +88,20 @@ const uploadEncryptedToPinata = async (jsonData) => {
 // Get all file requests
 const getRequests = asyncHandler(async (req, res) => {
   try {
-    // Fetch all requests, including pending ones, with populated institute info
+    // Debug log
+    console.log('Fetching requests for admin...');
+    console.log('Admin user:', req.user._id);
+
+    // Fetch all requests, including pending ones
     const requests = await FileRequest.find()
-      .populate({
-        path: 'institute',
-        select: 'name email'
-      })
-      .populate({
-        path: 'submittedBy',
-        select: 'name email'
-      })
+      .populate('institute', 'name email')
+      .populate('submittedBy', 'name email')
       .sort('-createdAt')
       .lean();
 
-    // Format the requests with all necessary fields
+    // Debug log
+    console.log('Found requests:', requests.length);
+
     const formattedRequests = requests.map(request => ({
       _id: request._id,
       examName: request.examName,
@@ -114,30 +114,26 @@ const getRequests = asyncHandler(async (req, res) => {
       resultsReleased: request.resultsReleased || false
     }));
 
-    console.log('Fetched requests:', formattedRequests); // Debug log
+    // Set proper headers
+    res.setHeader('Content-Type', 'application/json');
     res.json(formattedRequests);
   } catch (error) {
-    console.error('Error fetching requests:', error);
+    console.error('Error in getRequests:', error);
     res.status(500);
-    throw new Error('Failed to fetch requests');
+    throw new Error('Failed to fetch requests: ' + error.message);
   }
 });
 
 // Get dashboard statistics
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
-    const [
-      totalRequests,
-      pendingRequests,
-      approvedRequests,
-      rejectedRequests
-    ] = await Promise.all([
-      FileRequest.countDocuments(),
-      FileRequest.countDocuments({ status: 'pending' }),
-      FileRequest.countDocuments({ status: 'approved' }),
-      FileRequest.countDocuments({ status: 'rejected' })
-    ]);
+    const totalRequests = await FileRequest.countDocuments();
+    const pendingRequests = await FileRequest.countDocuments({ status: 'pending' });
+    const approvedRequests = await FileRequest.countDocuments({ status: 'approved' });
+    const rejectedRequests = await FileRequest.countDocuments({ status: 'rejected' });
 
+    // Set proper headers
+    res.setHeader('Content-Type', 'application/json');
     res.json({
       totalRequests,
       pendingRequests,
@@ -145,9 +141,9 @@ const getDashboardStats = asyncHandler(async (req, res) => {
       rejectedRequests
     });
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('Error in getDashboardStats:', error);
     res.status(500);
-    throw new Error('Failed to fetch dashboard statistics');
+    throw new Error('Failed to fetch dashboard stats: ' + error.message);
   }
 });
 
