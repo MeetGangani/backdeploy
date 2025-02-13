@@ -3,27 +3,15 @@ import mongoose from 'mongoose';
 const questionSchema = new mongoose.Schema({
   question: {
     type: String,
-    required: [true, 'Question text is required'],
-    trim: true
+    required: true
   },
-  options: {
-    type: [{
-      type: String,
-      required: true,
-      trim: true
-    }],
-    validate: {
-      validator: function(v) {
-        return v.length === 4;
-      },
-      message: 'Each question must have exactly 4 options'
-    }
-  },
+  options: [{
+    type: String,
+    required: true
+  }],
   correctAnswer: {
-    type: Number,
-    required: true,
-    min: [1, 'Correct answer must be between 1 and 4'],
-    max: [4, 'Correct answer must be between 1 and 4']
+    type: Number, // Index of correct option (0-3)
+    required: true
   }
 });
 
@@ -35,13 +23,11 @@ const fileRequestSchema = new mongoose.Schema({
   },
   examName: {
     type: String,
-    required: [true, 'Exam name is required'],
-    trim: true
+    required: true
   },
   description: {
     type: String,
-    required: [true, 'Description is required'],
-    trim: true
+    required: true
   },
   encryptedData: {
     type: String,
@@ -57,13 +43,11 @@ const fileRequestSchema = new mongoose.Schema({
   },
   ipfsHash: {
     type: String,
-    sparse: true,
-    index: true
+    default: null
   },
   totalQuestions: {
     type: Number,
-    required: true,
-    min: [1, 'Exam must have at least 1 question']
+    required: true
   },
   status: {
     type: String,
@@ -75,30 +59,25 @@ const fileRequestSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  adminComment: String,
+  adminComment: {
+    type: String
+  },
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  reviewedAt: Date,
+  reviewedAt: {
+    type: Date
+  },
   resultsReleased: {
     type: Boolean,
     default: false
   },
   timeLimit: {
     type: Number,
-    default: 60,
-    min: [15, 'Time limit must be at least 15 minutes'],
-    max: [180, 'Time limit cannot exceed 180 minutes']
+    default: 60 // 60 minutes default
   },
-  startDate: {
-    type: Date,
-    default: Date.now
-  },
-  endDate: {
-    type: Date
-  },
-  questions: [questionSchema]
+  questions: [questionSchema] // Will be populated after decryption
 }, {
   timestamps: true
 });
@@ -106,7 +85,6 @@ const fileRequestSchema = new mongoose.Schema({
 // Add indexes for better query performance
 fileRequestSchema.index({ institute: 1, status: 1 });
 fileRequestSchema.index({ status: 1, createdAt: -1 });
-fileRequestSchema.index({ ipfsHash: 1 }, { sparse: true });
 
 const FileRequest = mongoose.model('FileRequest', fileRequestSchema);
 export default FileRequest; 

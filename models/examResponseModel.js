@@ -7,11 +7,9 @@ const examResponseSchema = new mongoose.Schema({
     required: true
   },
   exam: {
-    _id: mongoose.Schema.Types.ObjectId,
-    ipfsHash: String,
-    examName: String,
-    timeLimit: Number,
-    totalQuestions: Number
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'FileRequest',
+    required: true
   },
   startTime: {
     type: Date,
@@ -26,11 +24,25 @@ const examResponseSchema = new mongoose.Schema({
   answers: {
     type: Map,
     of: Number,
-    default: {}
+    required: true
   },
-  score: Number,
+  score: {
+    type: Number,
+    required: true
+  },
+  correctAnswers: {
+    type: Number,
+    required: true
+  },
+  totalQuestions: {
+    type: Number,
+    required: true
+  },
   timeRemaining: Number,
-  submittedAt: Date
+  submittedAt: {
+    type: Date,
+    default: Date.now
+  }
 }, {
   timestamps: true
 });
