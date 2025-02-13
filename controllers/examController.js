@@ -39,63 +39,47 @@ const startExam = asyncHandler(async (req, res) => {
   try {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    // First, let's check if the hash exists and log what we find
     const exam = await FileRequest.findOne({
-      ipfsHash: ipfsHash.trim()  // Add trim() to handle any whitespace
+      ipfsHash: ipfsHash.trim()
     });
 
-    // Log the exam search result
-    logger.info('Exam search result:', {
-      found: !!exam,
-      examDetails: exam ? {
-        id: exam._id,
-        status: exam.status,
-        ipfsHash: exam.ipfsHash
-      } : null
-    });
-
-    // If no exam found, throw detailed error
     if (!exam) {
       logger.error(`No exam found with IPFS hash: ${ipfsHash}`);
       res.status(404);
       throw new Error('Exam not found with the provided IPFS hash');
     }
 
-    // If exam is not approved, throw detailed error
-    if (exam.status !== 'approved') {
-      logger.error(`Exam found but status is ${exam.status}, not approved`);
-      res.status(400);
-      throw new Error(`Exam is not approved (current status: ${exam.status})`);
-    }
-
-    // Check if student has already attempted this exam
+    // Check for any existing exam response
     const existingAttempt = await ExamResponse.findOne({
       exam: exam._id,
       student: req.user._id
     });
 
     if (existingAttempt) {
-      logger.error(`Student ${req.user._id} has already attempted exam ${exam._id}`);
-      res.status(400);
-      throw new Error('You have already attempted this exam');
+      if (existingAttempt.status === 'in-progress') {
+        // If there's an in-progress attempt, resume it
+        logger.info('Resuming existing exam attempt');
+      } else {
+        // If the exam was completed or timed out, don't allow another attempt
+        logger.error('Student has already completed this exam');
+        res.status(400);
+        throw new Error('You have already attempted this exam');
+      }
     }
 
-    // Create initial exam response record
-    const examResponse = await ExamResponse.create({
-      student: req.user._id,
-      exam: exam._id,
-      answers: {},
-      score: 0,
-      correctAnswers: 0,
-      totalQuestions: exam.totalQuestions,
-      status: 'in-progress'
-    });
-
-    logger.info('Created exam response record:', {
-      responseId: examResponse._id,
-      examId: exam._id,
-      studentId: req.user._id
-    });
+    // Create new exam response only if one doesn't exist
+    let examResponse = existingAttempt;
+    if (!examResponse) {
+      examResponse = await ExamResponse.create({
+        student: req.user._id,
+        exam: exam._id,
+        answers: {},
+        score: 0,
+        correctAnswers: 0,
+        totalQuestions: exam.totalQuestions,
+        status: 'in-progress'
+      });
+    }
 
     try {
       logger.info('Fetching exam data from IPFS...');
@@ -173,92 +157,71 @@ const submitExam = asyncHandler(async (req, res) => {
   });
 
   try {
-    logger.info(`Processing exam submission for exam: ${examId}`);
+    logger.info('Processing exam submission for exam:', examId);
 
+    // Find the existing exam response instead of creating a new one
+    const examResponse = await ExamResponse.findOne({
+      exam: examId,
+      student: req.user._id,
+      status: 'in-progress' // Only find in-progress exams
+    });
+
+    if (!examResponse) {
+      logger.error('No active exam response found');
+      res.status(404);
+      throw new Error('No active exam session found');
+    }
+
+    // Get the exam details to check answers
     const exam = await FileRequest.findById(examId);
     if (!exam) {
+      logger.error('Exam not found');
       res.status(404);
       throw new Error('Exam not found');
     }
 
-    const now = new Date();
-    
-    // Validate submission time
-    if (now > new Date(exam.endDate)) {
-      throw new Error('Exam submission period has ended');
-    }
-
-    // Get and decrypt exam data
+    // Fetch and decrypt exam data from IPFS to get correct answers
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
     const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
 
-    // Calculate score with detailed analysis
-    let correctAnswers = 0;
-    const totalQuestions = decryptedData.questions.length;
-    const answerAnalysis = [];
-
-    Object.entries(answers).forEach(([questionIndex, studentAnswer]) => {
-      const question = decryptedData.questions[parseInt(questionIndex)];
-      const isCorrect = studentAnswer === question.correctAnswer;
-      
-      if (isCorrect) correctAnswers++;
-
-      answerAnalysis.push({
-        questionId: question.id,
-        correct: isCorrect,
-        studentAnswer,
-        correctAnswer: question.correctAnswer
-      });
-    });
-
-    const score = (correctAnswers / totalQuestions) * 100;
-
-    // Create exam response with detailed data
-    const examResponse = await ExamResponse.create({
-      student: req.user._id,
-      exam: examId,
-      answers,
-      score,
-      correctAnswers,
-      totalQuestions,
-      answerAnalysis,
-      submittedAt: now
-    });
-
-    // Send immediate feedback email
-    try {
-      await sendEmail({
-        to: req.user.email,
-        subject: `Exam Submission Confirmation - ${exam.examName}`,
-        html: examResultTemplate({
-          examName: exam.examName,
-          score,
-          correctAnswers,
-          totalQuestions,
-          submittedAt: examResponse.submittedAt,
-          dashboardUrl: `${process.env.FRONTEND_URL}/student/results/${examResponse._id}`
-        })
-      });
-      
-      logger.info('Result email sent successfully');
-    } catch (emailError) {
-      logger.error('Email sending error:', emailError);
+    if (!decryptedData || !decryptedData.questions) {
+      throw new Error('Invalid exam data structure');
     }
+
+    // Calculate score
+    let correctCount = 0;
+    const totalQuestions = decryptedData.questions.length;
+
+    Object.entries(answers).forEach(([questionIndex, answer]) => {
+      if (decryptedData.questions[questionIndex]?.correctAnswer === answer) {
+        correctCount++;
+      }
+    });
+
+    const score = (correctCount / totalQuestions) * 100;
+
+    // Update the existing exam response
+    examResponse.answers = answers;
+    examResponse.score = score;
+    examResponse.correctAnswers = correctCount;
+    examResponse.totalQuestions = totalQuestions;
+    examResponse.submittedAt = new Date();
+    examResponse.status = 'completed';
+
+    await examResponse.save();
+
+    logger.info('Exam submitted successfully:', {
+      examId,
+      score,
+      correctAnswers: correctCount,
+      totalQuestions
+    });
 
     res.json({
       message: 'Exam submitted successfully',
-      examResponse: {
-        _id: examResponse._id,
-        exam: {
-          _id: exam._id,
-          examName: exam.examName,
-          resultsReleased: exam.resultsReleased
-        },
-        score,
-        correctAnswers,
-        totalQuestions,
-        submittedAt: examResponse.submittedAt
-      }
+      score,
+      correctAnswers: correctCount,
+      totalQuestions
     });
 
   } catch (error) {
@@ -268,7 +231,7 @@ const submitExam = asyncHandler(async (req, res) => {
       examId,
       userId: req.user._id
     });
-    res.status(500);
+    res.status(error.status || 500);
     throw new Error('Failed to submit exam');
   }
 });
