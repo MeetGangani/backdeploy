@@ -44,6 +44,8 @@ const logger = createLogger('adminController');
 // Function to upload encrypted data to Pinata
 const uploadEncryptedToPinata = async (jsonData) => {
   try {
+    logger.info('Starting Pinata upload process');
+    
     // Generate a new encryption key for IPFS
     const ipfsEncryptionKey = generateEncryptionKey();
     
@@ -58,11 +60,13 @@ const uploadEncryptedToPinata = async (jsonData) => {
         name: `exam_${Date.now()}`,
         keyvalues: {
           type: "encrypted_exam",
-          timestamp: encryptedData.timestamp.toString()
+          timestamp: Date.now().toString()
         }
       },
-      pinataContent: encryptedData // Upload encrypted content
+      pinataContent: encryptedData
     });
+
+    logger.info('Sending request to Pinata');
 
     const config = {
       method: 'post',
@@ -75,13 +79,21 @@ const uploadEncryptedToPinata = async (jsonData) => {
     };
 
     const response = await axios(config);
+    
+    logger.info('Pinata upload successful', {
+      ipfsHash: response.data.IpfsHash
+    });
+
     return {
       ipfsHash: response.data.IpfsHash,
       encryptionKey: ipfsEncryptionKey
     };
   } catch (error) {
-    console.error('Pinata upload error:', error);
-    throw new Error('Failed to upload encrypted data to IPFS');
+    logger.error('Pinata upload error:', {
+      error: error.message,
+      stack: error.stack
+    });
+    throw new Error(`Failed to upload to IPFS: ${error.message}`);
   }
 };
 
@@ -154,44 +166,69 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
   let ipfsHash, ipfsKey;
 
   try {
+    logger.info(`Starting request update for ID: ${id}, Status: ${status}`);
+
     const fileRequest = await FileRequest.findById(id)
       .populate('institute', 'name email')
       .exec();
     
     if (!fileRequest) {
+      logger.error(`Request not found for ID: ${id}`);
       res.status(404);
       throw new Error('Request not found');
     }
 
+    logger.info('Found file request:', {
+      id: fileRequest._id,
+      examName: fileRequest.examName,
+      hasEncryptedData: !!fileRequest.encryptedData,
+      hasEncryptionKey: !!fileRequest.encryptionKey
+    });
+
     // Process IPFS upload only for approved requests
     if (status === 'approved') {
       try {
-        logger.info('Starting approval process...');
-        
+        // Validate required data
+        if (!fileRequest.encryptedData || !fileRequest.encryptionKey) {
+          throw new Error('Missing encrypted data or encryption key');
+        }
+
         // Step 1: Decrypt the stored exam data
         let decryptedData;
         try {
-          logger.info('Decrypting stored data with key:', fileRequest.encryptionKey);
+          logger.info('Starting decryption with key length:', fileRequest.encryptionKey.length);
           decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
           logger.info('Successfully decrypted data');
         } catch (decryptError) {
-          logger.error('Decryption failed:', decryptError);
+          logger.error('Decryption error details:', {
+            error: decryptError.message,
+            stack: decryptError.stack,
+            keyLength: fileRequest.encryptionKey?.length,
+            dataLength: fileRequest.encryptedData?.length
+          });
           throw new Error(`Decryption failed: ${decryptError.message}`);
         }
 
         // Step 2: Upload to IPFS with new encryption
         try {
-          logger.info('Preparing IPFS upload...');
+          logger.info('Starting IPFS upload process');
           const { ipfsHash: hash, encryptionKey } = await uploadEncryptedToPinata(decryptedData);
           ipfsHash = hash;
           ipfsKey = encryptionKey;
           
+          logger.info('IPFS upload successful', {
+            hash: ipfsHash,
+            keyLength: ipfsKey.length
+          });
+
           // Save IPFS details to the request
           fileRequest.ipfsHash = ipfsHash;
           fileRequest.ipfsEncryptionKey = ipfsKey;
-          logger.info('Successfully uploaded to IPFS:', ipfsHash);
         } catch (ipfsError) {
-          logger.error('IPFS upload failed:', ipfsError);
+          logger.error('IPFS upload error:', {
+            error: ipfsError.message,
+            stack: ipfsError.stack
+          });
           throw new Error(`IPFS upload failed: ${ipfsError.message}`);
         }
 
@@ -200,8 +237,12 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         fileRequest.adminComment = adminComment;
         fileRequest.reviewedAt = Date.now();
         fileRequest.reviewedBy = req.user._id;
+
+        logger.info('Saving updated file request');
         await fileRequest.save();
 
+        logger.info('Request successfully approved and uploaded to IPFS');
+        
         // Send success response
         res.json({
           message: 'Request approved and uploaded to IPFS successfully',
@@ -211,8 +252,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         });
 
       } catch (error) {
-        logger.error('Approval process error:', error);
-        throw new Error(`Approval process failed: ${error.message}`);
+        logger.error('Approval process error:', {
+          error: error.message,
+          stack: error.stack
+        });
+        res.status(500).json({
+          message: `Approval process failed: ${error.message}`,
+          error: error.message
+        });
       }
     } else {
       // Handle rejection
@@ -220,6 +267,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       fileRequest.adminComment = adminComment;
       fileRequest.reviewedAt = Date.now();
       fileRequest.reviewedBy = req.user._id;
+      
+      logger.info('Saving rejected file request');
       await fileRequest.save();
 
       res.json({
@@ -228,9 +277,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       });
     }
   } catch (error) {
-    logger.error('Status update error:', error);
+    logger.error('Status update error:', {
+      error: error.message,
+      stack: error.stack,
+      requestId: id,
+      status
+    });
     res.status(500).json({
-      message: `Failed to process ${status}`,
+      message: `Failed to process ${status}: ${error.message}`,
       error: error.message
     });
   }
