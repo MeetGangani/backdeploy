@@ -29,8 +29,13 @@ const fileRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  encryptedData: {
+  status: {
     type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
+  },
+  encryptedData: {
+    type: Buffer,
     required: true
   },
   encryptionKey: {
@@ -48,11 +53,6 @@ const fileRequestSchema = new mongoose.Schema({
   totalQuestions: {
     type: Number,
     required: true
-  },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending'
   },
   submittedBy: {
     type: mongoose.Schema.Types.ObjectId,

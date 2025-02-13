@@ -52,15 +52,22 @@ const uploadFile = asyncHandler(async (req, res) => {
   }
 
   try {
-    // Create a new file request with status 'pending'
+    // Parse and validate the JSON content
+    const jsonContent = JSON.parse(file.buffer.toString());
+    validateQuestionFormat(jsonContent.questions);
+
+    // Process and encrypt the file
+    const { encrypted, encryptionKey } = processFile(file.buffer);
+
+    // Create a new file request
     const fileRequest = await FileRequest.create({
-      institute: req.user._id,
+      institute: req.user._id,  // Use institute instead of submittedBy
       examName,
       description,
-      status: 'pending', // Make sure status is set to pending
-      encryptedData: file.buffer,
-      encryptionKey: generateEncryptionKey(), // Make sure this is imported
-      totalQuestions: JSON.parse(file.buffer.toString()).questions.length
+      status: 'pending',
+      encryptedData: encrypted,
+      ipfsEncryptionKey: encryptionKey, // Add the encryption key
+      totalQuestions: jsonContent.questions.length
     });
 
     res.status(201).json({
