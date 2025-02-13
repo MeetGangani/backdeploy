@@ -62,21 +62,23 @@ const uploadFile = asyncHandler(async (req, res) => {
     const jsonContent = JSON.parse(file.buffer.toString());
     validateQuestionFormat(jsonContent.questions);
 
-    // Process and encrypt the file
-    const { encrypted, encryptionKey } = processFile(file.buffer);
+    // Generate encryption key
+    const encryptionKey = generateEncryptionKey();
+    
+    // Encrypt the JSON data
+    const encryptedData = encryptFile(jsonContent, encryptionKey);
 
-    // Create a new file request with all required fields
+    // Create a new file request
     const fileRequest = new FileRequest({
       institute: req.user._id,
       submittedBy: req.user._id,
       examName,
       description,
       status: 'pending',
-      encryptedData: encrypted.toString('base64'), // Convert to base64 string
+      encryptedData: encryptedData, // Store the encrypted string directly
       encryptionKey: encryptionKey,
-      ipfsEncryptionKey: encryptionKey,
       totalQuestions: jsonContent.questions.length,
-      timeLimit: 60 // default time limit in minutes
+      timeLimit: 60
     });
 
     await fileRequest.save();
