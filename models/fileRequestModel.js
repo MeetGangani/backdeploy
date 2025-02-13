@@ -65,7 +65,15 @@ const fileRequestSchema = new mongoose.Schema({
     type: Number,
     default: 60
   },
-  questions: [questionSchema] // Will be populated after decryption
+  questions: [questionSchema], // Will be populated after decryption
+  ipfsHash: {
+    type: String,
+    default: null
+  },
+  ipfsEncryptionKey: {
+    type: String,
+    default: null
+  }
 }, {
   timestamps: true
 });

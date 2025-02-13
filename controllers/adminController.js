@@ -165,7 +165,6 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 const updateRequestStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { status, adminComment } = req.body;
-  let ipfsHash, ipfsKey;
 
   try {
     logger.info(`Starting request update for ID: ${id}, Status: ${status}`);
@@ -173,79 +172,43 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     const fileRequest = await FileRequest.findById(id)
       .populate('institute', 'name email')
       .exec();
-    
+
     if (!fileRequest) {
       logger.error(`Request not found for ID: ${id}`);
       res.status(404);
       throw new Error('Request not found');
     }
 
-    logger.info('Found file request:', {
-      id: fileRequest._id,
-      examName: fileRequest.examName,
-      hasEncryptedData: !!fileRequest.encryptedData,
-      hasEncryptionKey: !!fileRequest.encryptionKey
-    });
-
     // Process IPFS upload only for approved requests
     if (status === 'approved') {
       try {
-        // Validate required data
-        if (!fileRequest.encryptedData || !fileRequest.encryptionKey) {
-          throw new Error('Missing encrypted data or encryption key');
-        }
+        // Decrypt the stored exam data
+        logger.info('Found file request:', {
+          id: fileRequest._id,
+          examName: fileRequest.examName,
+          hasEncryptedData: !!fileRequest.encryptedData,
+          hasEncryptionKey: !!fileRequest.encryptionKey
+        });
 
-        // Step 1: Decrypt the stored exam data
-        let decryptedData;
-        try {
-          logger.info('Starting decryption with key length:', fileRequest.encryptionKey.length);
-          decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
-          logger.info('Successfully decrypted data');
-        } catch (decryptError) {
-          logger.error('Decryption error details:', {
-            error: decryptError.message,
-            stack: decryptError.stack,
-            keyLength: fileRequest.encryptionKey?.length,
-            dataLength: fileRequest.encryptedData?.length
-          });
-          throw new Error(`Decryption failed: ${decryptError.message}`);
-        }
+        const decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
+        logger.info('Successfully decrypted exam data');
 
-        // Step 2: Upload to IPFS with new encryption
-        try {
-          logger.info('Starting IPFS upload process');
-          const { ipfsHash: hash, encryptionKey } = await uploadEncryptedToPinata(decryptedData);
-          ipfsHash = hash;
-          ipfsKey = encryptionKey;
-          
-          logger.info('IPFS upload successful', {
-            hash: ipfsHash,
-            keyLength: ipfsKey.length
-          });
+        // Upload to IPFS with encryption
+        const { ipfsHash, encryptionKey } = await uploadEncryptedToPinata(decryptedData);
+        logger.info('Successfully uploaded to IPFS:', { ipfsHash });
 
-          // Save IPFS details to the request
-          fileRequest.ipfsHash = ipfsHash;
-          fileRequest.ipfsEncryptionKey = ipfsKey;
-        } catch (ipfsError) {
-          logger.error('IPFS upload error:', {
-            error: ipfsError.message,
-            stack: ipfsError.stack
-          });
-          throw new Error(`IPFS upload failed: ${ipfsError.message}`);
-        }
-
-        // Update request status and save
+        // Update file request with IPFS details
         fileRequest.status = status;
+        fileRequest.ipfsHash = ipfsHash;
+        fileRequest.ipfsEncryptionKey = encryptionKey; // Store the IPFS encryption key
         fileRequest.adminComment = adminComment;
         fileRequest.reviewedAt = Date.now();
         fileRequest.reviewedBy = req.user._id;
 
-        logger.info('Saving updated file request');
+        logger.info('Saving file request with IPFS details');
         await fileRequest.save();
 
-        logger.info('Request successfully approved and uploaded to IPFS');
-        
-        // Send approval email using the template
+        // Send approval email
         try {
           await sendEmail({
             to: fileRequest.institute.email,
@@ -256,7 +219,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
               status: 'approved',
               feedback: adminComment,
               ipfsHash: ipfsHash,
-              encryptionKey: ipfsKey
+              encryptionKey: encryptionKey
             })
           });
           logger.info('Approval email sent successfully');
@@ -268,11 +231,14 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           message: 'Request approved and uploaded to IPFS successfully',
           status: fileRequest.status,
           ipfsHash,
-          ipfsEncryptionKey: ipfsKey
+          ipfsEncryptionKey: encryptionKey
         });
 
       } catch (error) {
-        logger.error('Approval process error:', error);
+        logger.error('Approval process error:', {
+          error: error.message,
+          stack: error.stack
+        });
         throw new Error(`Approval process failed: ${error.message}`);
       }
     } else {
