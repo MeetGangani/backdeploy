@@ -20,6 +20,9 @@ const validateQuestionFormat = (questions) => {
   });
 };
 
+// @desc    Upload file and create request
+// @route   POST /api/upload
+// @access  Institute Only
 const uploadFile = asyncHandler(async (req, res) => {
   try {
     if (!req.file) {
@@ -71,4 +74,44 @@ const uploadFile = asyncHandler(async (req, res) => {
   }
 });
 
-export { uploadFile };
+// @desc    Get institute's uploaded files
+// @route   GET /api/upload/my-uploads
+// @access  Institute Only
+const getMyUploads = asyncHandler(async (req, res) => {
+  try {
+    const uploads = await FileRequest.find({ 
+      institute: req.user._id 
+    })
+    .select('examName description status createdAt totalQuestions ipfsHash resultsReleased')
+    .sort('-createdAt');
+
+    res.json(uploads);
+  } catch (error) {
+    logger.error('Get uploads error:', error);
+    res.status(500);
+    throw new Error('Failed to fetch uploads');
+  }
+});
+
+// @desc    Get upload details
+// @route   GET /api/upload/requests/:id
+// @access  Institute Only (own requests)
+const getUploadDetails = asyncHandler(async (req, res) => {
+  const request = await FileRequest.findOne({
+    _id: req.params.id,
+    institute: req.user._id
+  }).select('-encryptedData -encryptionKey');
+
+  if (!request) {
+    res.status(404);
+    throw new Error('Request not found');
+  }
+
+  res.json(request);
+});
+
+export { 
+  uploadFile, 
+  getMyUploads,
+  getUploadDetails
+};
