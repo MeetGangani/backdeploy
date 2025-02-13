@@ -34,11 +34,6 @@ const fileRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  status: {
-    type: String,
-    enum: ['pending', 'approved', 'rejected'],
-    default: 'pending'
-  },
   encryptedData: {
     type: String,
     required: true
@@ -47,28 +42,21 @@ const fileRequestSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  ipfsEncryptionKey: {
-    type: String,
-    required: true
-  },
-  ipfsHash: {
-    type: String,
-    default: null
-  },
   totalQuestions: {
     type: Number,
     required: true
   },
-  adminComment: {
-    type: String
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending'
   },
+  adminComment: String,
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  reviewedAt: {
-    type: Date
-  },
+  reviewedAt: Date,
   resultsReleased: {
     type: Boolean,
     default: false

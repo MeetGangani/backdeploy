@@ -49,63 +49,52 @@ const validateQuestionFormat = (questions) => {
 // @route   POST /api/upload
 // @access  Institute Only
 const uploadFile = asyncHandler(async (req, res) => {
-  const { examName, description } = req.body;
-  const file = req.file;
-
-  if (!file || !examName || !description) {
-    res.status(400);
-    throw new Error('Please provide all required fields');
-  }
-
   try {
-    // Parse and validate the JSON content
+    // 1. Validate request
+    if (!req.file || !req.body.examName || !req.body.description) {
+      res.status(400);
+      throw new Error('Please provide all required fields');
+    }
+
+    // 2. Parse and validate JSON content
     let jsonContent;
     try {
-      jsonContent = JSON.parse(file.buffer.toString());
+      jsonContent = JSON.parse(req.file.buffer.toString());
       validateQuestionFormat(jsonContent.questions);
-    } catch (parseError) {
-      console.error('JSON parsing error:', parseError);
+    } catch (error) {
       res.status(400);
-      throw new Error('Invalid JSON format in uploaded file');
+      throw new Error(`Invalid JSON format: ${error.message}`);
     }
 
-    // Generate encryption key
+    // 3. Generate encryption key and encrypt data
     const encryptionKey = generateEncryptionKey();
-    console.log('Generated key length:', encryptionKey.length);
-    
-    // Encrypt the JSON data
-    let encryptedData;
-    try {
-      encryptedData = encryptFile(jsonContent, encryptionKey);
-      console.log('Encryption successful');
-    } catch (encryptError) {
-      console.error('Encryption failed:', encryptError);
-      throw new Error('Failed to encrypt file data');
-    }
+    const encryptedData = encryptFile(jsonContent, encryptionKey);
 
-    // Create a new file request
-    const fileRequest = new FileRequest({
+    // 4. Create file request in database
+    const fileRequest = await FileRequest.create({
       institute: req.user._id,
       submittedBy: req.user._id,
-      examName,
-      description,
-      status: 'pending',
-      encryptedData,
-      encryptionKey,
+      examName: req.body.examName,
+      description: req.body.description,
+      encryptedData: encryptedData,
+      encryptionKey: encryptionKey,
       totalQuestions: jsonContent.questions.length,
-      timeLimit: 60
+      status: 'pending',
+      timeLimit: 60 // Default time limit
     });
 
-    await fileRequest.save();
-
+    // 5. Send success response
     res.status(201).json({
       message: 'File uploaded successfully',
-      requestId: fileRequest._id
+      requestId: fileRequest._id,
+      examName: fileRequest.examName,
+      totalQuestions: fileRequest.totalQuestions
     });
+
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500);
-    throw new Error('Error uploading file: ' + error.message);
+    res.status(error.status || 500);
+    throw new Error(error.message || 'Failed to upload file');
   }
 });
 

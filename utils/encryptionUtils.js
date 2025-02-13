@@ -22,36 +22,20 @@ const encryptFile = (data, secretKey) => {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    // Ensure the key is the correct length (32 bytes = 256 bits)
-    const keyBytes = Buffer.from(secretKey, 'hex');
-    if (keyBytes.length !== 32) {
-      throw new Error('Invalid key length');
-    }
-
-    // Create a WordArray from the key bytes
-    const key = CryptoJS.lib.WordArray.create(keyBytes);
-    
-    // Generate a random IV
+    // Generate IV
     const iv = CryptoJS.lib.WordArray.random(16);
     
-    // Encrypt using CryptoJS
-    const encrypted = CryptoJS.AES.encrypt(dataString, key, {
+    // Encrypt using AES-256-CBC
+    const encrypted = CryptoJS.AES.encrypt(dataString, secretKey, {
       iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });
     
-    // Combine IV and encrypted data
-    const combined = iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
-    
-    return combined;
+    // Return IV and encrypted data concatenated
+    return iv.toString(CryptoJS.enc.Base64) + ':' + encrypted.toString();
   } catch (error) {
-    console.error('Encryption error details:', {
-      error: error.message,
-      stack: error.stack,
-      keyLength: secretKey?.length,
-      dataType: typeof data
-    });
+    console.error('Encryption error:', error);
     throw new Error('Failed to encrypt file');
   }
 };
