@@ -163,11 +163,27 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 // @route   GET /api/upload/my-uploads
 // @access  Institute Only
 const getMyUploads = asyncHandler(async (req, res) => {
-  const uploads = await FileRequest.find({ institute: req.user._id })
-    .select('examName description status createdAt totalQuestions ipfsHash resultsReleased')
+  try {
+    const uploads = await FileRequest.find({ 
+      institute: req.user._id 
+    })
+    .select('examName description status createdAt totalQuestions resultsReleased')
     .sort('-createdAt');
 
-  res.json(uploads);
+    if (!uploads) {
+      return res.status(404).json({
+        message: 'No uploads found'
+      });
+    }
+
+    res.status(200).json(uploads);
+  } catch (error) {
+    console.error('Error in getMyUploads:', error);
+    res.status(500).json({
+      message: 'Failed to fetch uploads',
+      error: error.message
+    });
+  }
 });
 
 // @desc    Get upload details
