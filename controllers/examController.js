@@ -306,7 +306,8 @@ const getMyResults = asyncHandler(async (req, res) => {
     logger.info('Fetching results for student:', req.user._id);
     
     const results = await ExamResponse.find({ 
-      student: req.user._id 
+      student: req.user._id,
+      status: 'completed' // Only get completed exams
     })
     .populate({
       path: 'exam',
@@ -318,15 +319,16 @@ const getMyResults = asyncHandler(async (req, res) => {
 
     logger.info('Raw results from DB:', results);
 
-    // Ensure we're working with an array
+    // Format results and hide scores if not released
     const formattedResults = (results || []).map(result => ({
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
         resultsReleased: result.exam?.resultsReleased || false
       },
-      score: result.score,
-      correctAnswers: result.correctAnswers,
+      // Only include score and details if results are released
+      score: result.exam?.resultsReleased ? result.score : null,
+      correctAnswers: result.exam?.resultsReleased ? result.correctAnswers : null,
       totalQuestions: result.totalQuestions,
       submittedAt: result.submittedAt
     }));
