@@ -2,7 +2,7 @@ import CryptoJS from 'crypto-js';
 import crypto from 'crypto';
 
 // Generate a random encryption key
-export const generateEncryptionKey = () => {
+const generateEncryptionKey = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
@@ -17,7 +17,7 @@ const binaryToJson = (buffer) => {
 };
 
 // Encrypt file for initial storage
-export const encryptFile = (data, secretKey) => {
+const encryptFile = (data, secretKey) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -41,7 +41,7 @@ export const encryptFile = (data, secretKey) => {
 };
 
 // Decrypt file from storage
-export const decryptFile = (encryptedData, key) => {
+const decryptFile = (encryptedData, key) => {
   try {
     // Split IV and encrypted data
     const [ivString, encryptedString] = encryptedData.split(':');
@@ -70,7 +70,7 @@ export const decryptFile = (encryptedData, key) => {
 };
 
 // Encrypt for IPFS
-export const encryptForIPFS = (data, key) => {
+const encryptForIPFS = (data, key) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -97,7 +97,7 @@ export const encryptForIPFS = (data, key) => {
 };
 
 // Decrypt from IPFS
-export const decryptFromIPFS = (encryptedObject, key) => {
+const decryptFromIPFS = (encryptedObject, key) => {
   try {
     const iv = Buffer.from(encryptedObject.iv, 'base64');
     const keyBuffer = Buffer.from(key, 'hex');
@@ -137,9 +137,9 @@ export const processFile = (buffer) => {
 export {
   jsonToBinary,
   binaryToJson,
+  generateEncryptionKey,
   encryptFile,
   decryptFile,
   encryptForIPFS,
-  decryptFromIPFS,
-  generateEncryptionKey
+  decryptFromIPFS
 };
