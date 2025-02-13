@@ -43,28 +43,60 @@ const encryptFile = (data, secretKey) => {
 // Decrypt file from storage
 const decryptFile = (encryptedData, key) => {
   try {
+    // Log input data for debugging
+    console.log('Decrypting data:', {
+      dataType: typeof encryptedData,
+      hasData: !!encryptedData,
+      keyType: typeof key,
+      hasKey: !!key,
+      dataSample: encryptedData ? encryptedData.substring(0, 100) : 'No data'
+    });
+
+    // Validate inputs
+    if (!encryptedData || !key) {
+      throw new Error('Missing required decryption parameters');
+    }
+
+    // Ensure we're working with strings
+    const encryptedString = encryptedData.toString();
+    const keyString = key.toString();
+
     // Split IV and encrypted data
-    const [ivString, encryptedString] = encryptedData.split(':');
+    const parts = encryptedString.split(':');
+    if (parts.length !== 2) {
+      throw new Error(`Invalid encrypted data format. Expected format: "iv:encryptedData", got: "${encryptedString.substring(0, 50)}..."`);
+    }
+
+    const [ivString, encryptedContent] = parts;
     
-    if (!ivString || !encryptedString) {
-      throw new Error('Invalid encrypted data format');
+    if (!ivString || !encryptedContent) {
+      throw new Error('Invalid encrypted data format: missing IV or content');
     }
     
     // Convert IV and key from string format
     const iv = Buffer.from(ivString, 'base64');
-    const keyBuffer = Buffer.from(key, 'hex');
+    const keyBuffer = Buffer.from(keyString, 'hex');
     
     // Create decipher
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     
     // Decrypt the data
-    let decrypted = decipher.update(encryptedString, 'base64', 'utf8');
+    let decrypted = decipher.update(encryptedContent, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     
-    // Parse the decrypted JSON
-    return JSON.parse(decrypted);
+    // Try to parse the decrypted JSON
+    try {
+      return JSON.parse(decrypted);
+    } catch (parseError) {
+      console.error('Failed to parse decrypted data:', decrypted.substring(0, 100));
+      throw new Error('Failed to parse decrypted data as JSON');
+    }
   } catch (error) {
-    console.error('Decryption error:', error);
+    console.error('Decryption error:', {
+      message: error.message,
+      stack: error.stack,
+      inputData: encryptedData ? encryptedData.substring(0, 100) : 'No data'
+    });
     throw new Error(`Failed to decrypt file: ${error.message}`);
   }
 };

@@ -172,22 +172,50 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     if (status === 'approved') {
       try {
         logger.info('Starting approval process...');
+        logger.info('File Request Data:', {
+          examName: fileRequest.examName,
+          hasEncryptedData: !!fileRequest.encryptedData,
+          hasEncryptionKey: !!fileRequest.encryptionKey,
+          encryptedDataType: typeof fileRequest.encryptedData
+        });
         
         // Step 1: Decrypt the stored data
         let decryptedData;
         try {
-          logger.info('Decrypting stored data...');
-          // Ensure encryptedData is properly formatted
-          if (!fileRequest.encryptedData || !fileRequest.encryptionKey) {
-            throw new Error('Missing encrypted data or encryption key');
+          // Check if we have the required data
+          if (!fileRequest.encryptedData) {
+            throw new Error('No encrypted data found');
+          }
+          if (!fileRequest.encryptionKey) {
+            throw new Error('No encryption key found');
           }
 
-          // Convert stored data to proper format if needed
-          const encryptedDataString = fileRequest.encryptedData.toString();
+          logger.info('Attempting to decrypt data');
+          
+          // If encryptedData is stored as a Buffer or Object, convert it
+          let encryptedDataString;
+          if (Buffer.isBuffer(fileRequest.encryptedData)) {
+            encryptedDataString = fileRequest.encryptedData.toString('utf8');
+          } else if (typeof fileRequest.encryptedData === 'object') {
+            encryptedDataString = JSON.stringify(fileRequest.encryptedData);
+          } else {
+            encryptedDataString = fileRequest.encryptedData;
+          }
+
+          logger.info('Encrypted data string:', encryptedDataString.substring(0, 100) + '...');
+          
+          // Attempt decryption
           decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
           logger.info('Successfully decrypted data');
+
         } catch (decryptError) {
-          logger.error('Decryption failed:', decryptError);
+          logger.error('Decryption error details:', {
+            error: decryptError.message,
+            stack: decryptError.stack,
+            encryptedDataSample: fileRequest.encryptedData ? 
+              fileRequest.encryptedData.toString().substring(0, 100) + '...' : 
+              'No data'
+          });
           throw new Error(`Decryption failed: ${decryptError.message}`);
         }
 
@@ -200,8 +228,9 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         const encryptedForIPFS = encryptForIPFS(decryptedData, ipfsKey);
         logger.info('Successfully encrypted for IPFS');
 
-        // Step 4: Prepare and upload to Pinata
-        const pinataData = JSON.stringify({
+        // Step 4: Upload to Pinata
+        logger.info('Preparing Pinata upload...');
+        const pinataData = {
           pinataOptions: { cidVersion: 1 },
           pinataMetadata: {
             name: `exam_${fileRequest.examName}_${Date.now()}`,
@@ -211,7 +240,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
             }
           },
           pinataContent: encryptedForIPFS
-        });
+        };
 
         logger.info('Uploading to Pinata...');
         const pinataResponse = await axios.post(
@@ -252,7 +281,10 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         }
 
       } catch (error) {
-        logger.error('IPFS process error:', error);
+        logger.error('IPFS process error:', {
+          message: error.message,
+          stack: error.stack
+        });
         throw new Error(`IPFS process failed: ${error.message}`);
       }
     } else if (status === 'rejected') {
@@ -290,7 +322,10 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Status update error:', error);
+    logger.error('Status update error:', {
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({
       message: `Failed to process ${status}`,
       error: error.message
