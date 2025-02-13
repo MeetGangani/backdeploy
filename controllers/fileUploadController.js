@@ -30,13 +30,6 @@ const uploadFile = asyncHandler(async (req, res) => {
       throw new Error('No file uploaded');
     }
 
-    const { examName, description, timeLimit } = req.body;
-
-    if (!examName || !description) {
-      res.status(400);
-      throw new Error('Please provide exam name and description');
-    }
-
     // Parse and validate JSON content
     let examData;
     try {
@@ -57,16 +50,15 @@ const uploadFile = asyncHandler(async (req, res) => {
     // Create file request
     const fileRequest = await FileRequest.create({
       institute: req.user._id,
-      examName,
-      description,
+      examName: req.body.examName,
+      description: req.body.description,
       encryptedData,
       encryptionKey,
-      ipfsEncryptionKey, // Store for later IPFS upload when approved
+      ipfsEncryptionKey,
       totalQuestions: examData.questions.length,
       status: 'pending',
       submittedBy: req.user._id,
-      timeLimit: parseInt(timeLimit) || 60,
-      questions: examData.questions // Store original questions for validation
+      questions: examData.questions
     });
 
     res.status(201).json({
@@ -88,19 +80,11 @@ const uploadFile = asyncHandler(async (req, res) => {
 // @route   GET /api/upload/my-uploads
 // @access  Institute Only
 const getMyUploads = asyncHandler(async (req, res) => {
-  try {
-    const uploads = await FileRequest.find({ 
-      institute: req.user._id 
-    })
+  const uploads = await FileRequest.find({ institute: req.user._id })
     .select('examName description status createdAt totalQuestions ipfsHash resultsReleased')
     .sort('-createdAt');
 
-    res.json(uploads);
-  } catch (error) {
-    logger.error('Get uploads error:', error);
-    res.status(500);
-    throw new Error('Failed to fetch uploads');
-  }
+  res.json(uploads);
 });
 
 // @desc    Get upload details
@@ -110,7 +94,7 @@ const getUploadDetails = asyncHandler(async (req, res) => {
   const request = await FileRequest.findOne({
     _id: req.params.id,
     institute: req.user._id
-  }).select('-encryptedData -encryptionKey -ipfsEncryptionKey'); // Don't send sensitive data
+  }).select('-encryptedData -encryptionKey -ipfsEncryptionKey');
 
   if (!request) {
     res.status(404);

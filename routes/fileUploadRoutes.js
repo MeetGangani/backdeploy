@@ -1,42 +1,16 @@
 import express from 'express';
-import multer from 'multer';
 import { protect, instituteOnly } from '../middleware/authMiddleware.js';
-import {
-  uploadFile,
-  getMyUploads,
-  getUploadDetails
-} from '../controllers/fileUploadController.js';
+import { uploadFile, getMyUploads, getUploadDetails } from '../controllers/fileUploadController.js';
+import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
-// Configure multer for file upload
-const storage = multer.memoryStorage();
-const uploadMiddleware = multer({
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  }
-});
+router.use(protect); // All routes require authentication
 
-// Handle file upload
-router.post('/', protect, instituteOnly, uploadMiddleware.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
+router.route('/')
+  .post(instituteOnly, upload.single('file'), uploadFile);
 
-    const result = await uploadFile(req.file);
-    res.json(result);
-  } catch (error) {
-    console.error('File upload error:', error);
-    res.status(500).json({ 
-      message: 'Error uploading file',
-      error: error.message 
-    });
-  }
-});
-
-router.get('/my-uploads', protect, instituteOnly, getMyUploads);
-router.get('/requests/:id', protect, instituteOnly, getUploadDetails);
+router.get('/my-uploads', instituteOnly, getMyUploads);
+router.get('/requests/:id', instituteOnly, getUploadDetails);
 
 export default router; 
