@@ -42,47 +42,51 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Updated CORS configuration
+// Define allowed origins
 const allowedOrigins = [
   'https://nexusedu-jade.vercel.app',
   'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
   'http://localhost:3000'
 ];
 
-// Apply CORS before other middleware
-app.use(cors({
-  origin: function(origin, callback) {
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.log('Blocked origin:', origin); // Debug log
+      console.log('Blocked origin:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 600
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['set-cookie']
+};
+
+// Apply CORS before any other middleware
+app.use(cors(corsOptions));
+
+// Add a middleware to handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Add headers middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   }
   next();
 });
-
-// Place this before your routes
-app.options('*', cors()); // Enable pre-flight for all routes
 
 // Trust proxy for secure cookies
 if (process.env.NODE_ENV === 'production') {
@@ -90,6 +94,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Session configuration with MongoDB store
