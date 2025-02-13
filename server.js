@@ -42,59 +42,37 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Define allowed origins
-const allowedOrigins = [
-  'https://nexusedu-jade.vercel.app',
-  'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-  'http://localhost:3000'
-];
-
 // CORS configuration
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('Blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://nexusedu-jade.vercel.app',
+    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
+    // Add any other frontend URLs that need access
+    process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null
+  ].filter(Boolean), // Remove null values
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['set-cookie']
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization'
+  ]
 };
 
-// Apply CORS before any other middleware
+// Apply CORS middleware
 app.use(cors(corsOptions));
 
-// Add a middleware to handle preflight requests
-app.options('*', cors(corsOptions));
-
-// Add headers middleware
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  }
-  next();
-});
+// Body parser middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Trust proxy for secure cookies
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Session configuration with MongoDB store
@@ -172,9 +150,26 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// Error handling
-app.use(notFound);
-app.use(errorHandler);
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  
+  // Handle CORS errors
+  if (err.name === 'CORSError') {
+    return res.status(403).json({
+      message: 'CORS error: Not allowed by CORS policy',
+      error: err.message
+    });
+  }
+
+  // Handle other errors
+  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  res.status(statusCode);
+  res.json({
+    message: err.message,
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack
+  });
+});
 
 // Start server
 const port = process.env.PORT || 5000;
