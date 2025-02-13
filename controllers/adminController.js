@@ -94,8 +94,8 @@ const getRequests = asyncHandler(async (req, res) => {
       .sort('-createdAt')
       .lean();
 
-    // Make sure we're returning all necessary fields
-    const formattedRequests = requests.map(request => ({
+    // Ensure we're always returning an array
+    const formattedRequests = Array.isArray(requests) ? requests.map(request => ({
       _id: request._id,
       fileName: request.examName,
       institute: request.institute,
@@ -104,7 +104,7 @@ const getRequests = asyncHandler(async (req, res) => {
       totalQuestions: request.totalQuestions,
       description: request.description,
       resultsReleased: request.resultsReleased || false
-    }));
+    })) : [];
 
     res.json(formattedRequests);
   } catch (error) {
