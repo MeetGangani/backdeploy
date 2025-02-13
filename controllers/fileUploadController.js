@@ -47,7 +47,7 @@ const uploadFile = asyncHandler(async (req, res) => {
     // Encrypt the exam data
     const encryptedData = encryptFile(examData, encryptionKey);
 
-    // Create file request
+    // Create file request - store only encrypted data
     const fileRequest = await FileRequest.create({
       institute: req.user._id,
       examName: req.body.examName,
@@ -57,8 +57,7 @@ const uploadFile = asyncHandler(async (req, res) => {
       ipfsEncryptionKey,
       totalQuestions: examData.questions.length,
       status: 'pending',
-      submittedBy: req.user._id,
-      questions: examData.questions
+      submittedBy: req.user._id
     });
 
     res.status(201).json({
