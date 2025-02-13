@@ -28,13 +28,25 @@ const examResponseSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  submittedAt: {
+  startTime: {
     type: Date,
     default: Date.now
+  },
+  submittedAt: {
+    type: Date,
+    default: null
+  },
+  status: {
+    type: String,
+    enum: ['in-progress', 'completed', 'timed-out'],
+    default: 'in-progress'
   }
 }, {
   timestamps: true
 });
+
+// Index for efficient queries
+examResponseSchema.index({ student: 1, exam: 1 }, { unique: true });
 
 const ExamResponse = mongoose.model('ExamResponse', examResponseSchema);
 export default ExamResponse; 
