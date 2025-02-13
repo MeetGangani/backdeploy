@@ -14,7 +14,8 @@ import {
   generateEncryptionKey, 
   decryptFile
 } from '../utils/encryptionUtils.js';
-import { Button } from 'react-bootstrap';
+import { examApprovalTemplate } from '../utils/emailTemplates.js';
+import { createLogger } from '../utils/logger.js';
 dotenv.config();
 
 // Get the current file's directory
@@ -37,6 +38,8 @@ const PINATA_API_KEY = process.env.PINATA_API_KEY;
 
 const PINATA_SECRET_KEY = process.env.PINATA_SECRET_KEY;
 const PINATA_JWT = process.env.PINATA_JWT;
+
+const logger = createLogger('adminController');
 
 // Function to upload encrypted data to Pinata
 const uploadEncryptedToPinata = async (jsonData) => {
@@ -144,7 +147,6 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
   let ipfsHash;
 
   try {
-    // Fetch request with populated institute details
     const fileRequest = await FileRequest.findById(id)
       .populate('institute', 'name email')
       .exec();
@@ -159,46 +161,39 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       throw new Error('Invalid status');
     }
 
-    // Check if institute exists and has an email before proceeding
     if (!fileRequest.institute || !fileRequest.institute.email) {
       throw new Error('Institute details not found');
     }
 
+    // Only process IPFS upload for approved requests
     if (status === 'approved') {
       try {
-        console.log('Starting approval process...');
+        logger.info('Starting approval process...');
         
-        // First decrypt the stored data
         let decryptedData;
         try {
-          console.log('Decrypting stored data...');
+          logger.info('Decrypting stored data...');
           decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
-          console.log('Successfully decrypted data');
+          logger.info('Successfully decrypted data');
         } catch (decryptError) {
-          console.error('Decryption failed:', decryptError);
+          logger.error('Decryption failed:', decryptError);
           throw new Error(`Decryption failed: ${decryptError.message}`);
         }
         
-        // Encrypt for IPFS
-        console.log('Encrypting for IPFS...');
+        logger.info('Encrypting for IPFS...');
         const encryptedForIPFS = encryptForIPFS(decryptedData, fileRequest.ipfsEncryptionKey);
-        console.log('Successfully encrypted for IPFS');
+        logger.info('Successfully encrypted for IPFS');
         
-        // Prepare data for Pinata
         const pinataData = JSON.stringify({
-          pinataOptions: {
-            cidVersion: 1
-          },
+          pinataOptions: { cidVersion: 1 },
           pinataMetadata: {
             name: `exam_${fileRequest.examName}_${Date.now()}`,
-            keyvalues: {
-              type: "encrypted_exam"
-            }
+            keyvalues: { type: "encrypted_exam" }
           },
           pinataContent: encryptedForIPFS
         });
 
-        console.log('Uploading to Pinata...');
+        logger.info('Uploading to Pinata...');
         const pinataResponse = await axios.post(
           'https://api.pinata.cloud/pinning/pinJSONToIPFS',
           pinataData,
@@ -212,10 +207,9 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
         ipfsHash = pinataResponse.data.IpfsHash;
         fileRequest.ipfsHash = ipfsHash;
-        
-        console.log('Successfully uploaded to IPFS:', ipfsHash);
+        logger.info('Successfully uploaded to IPFS:', ipfsHash);
       } catch (error) {
-        console.error('IPFS upload error:', error);
+        logger.error('IPFS upload error:', error);
         throw new Error(`IPFS upload failed: ${error.message}`);
       }
     }
@@ -232,40 +226,20 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       await sendEmail({
         to: fileRequest.institute.email,
         subject: `Exam Request ${status.toUpperCase()}`,
-        text: status === 'approved' ? 
-          `
-          Exam Request Update
-          
-          Your exam request for "${fileRequest.examName}" has been approved.
-          
-          Important Details:
-          - IPFS Hash: ${ipfsHash}
-          - Exam Name: ${fileRequest.examName}
-          - Total Questions: ${fileRequest.totalQuestions}
-          - Time Limit: ${fileRequest.timeLimit} minutes
-          - IPFS Encryption Key: ${fileRequest.ipfsEncryptionKey}
-          
-          ${adminComment ? `Admin Comment: ${adminComment}` : ''}
-          
-          Your exam has been successfully encrypted and uploaded to IPFS.
-          Please save both the IPFS Hash and Encryption Key as they will be needed for students to access the exam.
-          
-          Note: Keep this information secure and share only with authorized students.
-          ` :
-          `
-          Exam Request Update
-          
-          Your exam request for "${fileRequest.examName}" has been rejected.
-          ${adminComment ? `\nAdmin Comment: ${adminComment}` : ''}
-          
-          If you have any questions, please contact the administrator.
-          `
+        html: examApprovalTemplate({
+          examName: fileRequest.examName,
+          status,
+          ipfsHash,
+          ipfsEncryptionKey: fileRequest.ipfsEncryptionKey,
+          totalQuestions: fileRequest.totalQuestions,
+          timeLimit: fileRequest.timeLimit,
+          adminComment
+        }, status)
       });
       
-      console.log('Email sent successfully');
+      logger.info('Email sent successfully');
     } catch (emailError) {
-      console.error('Email sending error:', emailError);
-      // Don't throw error here, just log it
+      logger.error('Email sending error:', emailError);
     }
 
     res.json({
@@ -276,7 +250,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Status update error:', error);
+    logger.error('Status update error:', error);
     res.status(500);
     throw new Error(`Failed to process ${status}: ${error.message}`);
   }

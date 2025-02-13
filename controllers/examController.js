@@ -1,12 +1,11 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import ExamResponse from '../models/examResponseModel.js';
-import { decryptFile } from '../utils/encryptionUtils.js';
+import { decryptFromIPFS } from '../utils/encryptionUtils.js';
 import sendEmail from '../utils/emailUtils.js';
 import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
-import Upload from '../models/uploadModel.js';
 
 const logger = createLogger('examController');
 
@@ -20,26 +19,12 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 
     const attemptedExamIds = attemptedExams.map(response => response.exam);
 
-    // Updated query to include institute information
     const availableExams = await FileRequest.find({
       status: 'approved',
       _id: { $nin: attemptedExamIds }
-    })
-    .populate('institute', 'name') // Populate institute details
-    .select('examName timeLimit totalQuestions ipfsHash institute')
-    .lean();
+    }).select('examName timeLimit totalQuestions ipfsHash').lean();
 
-    // Format the response
-    const formattedExams = availableExams.map(exam => ({
-      _id: exam._id,
-      examName: exam.examName,
-      instituteName: exam.institute?.name || 'Unknown Institute',
-      timeLimit: exam.timeLimit,
-      totalQuestions: exam.totalQuestions,
-      ipfsHash: exam.ipfsHash
-    }));
-
-    res.json(formattedExams);
+    res.json(availableExams);
   } catch (error) {
     logger.error('Error fetching available exams:', error);
     res.status(500);
@@ -49,101 +34,80 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 
 // Enhanced exam start with validation
 const startExam = asyncHandler(async (req, res) => {
-  try {
-    const { ipfsHash } = req.body;
-    const studentId = req.user._id;
+  const { ipfsHash } = req.body;
 
-    if (!ipfsHash) {
-      logger.error('Missing IPFS hash');
-      return res.status(400).json({
-        message: 'IPFS hash is required'
-      });
+  try {
+    logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
+
+    // Find the exam using IPFS hash
+    const exam = await FileRequest.findOne({
+      ipfsHash,
+      status: 'approved'
+    });
+
+    if (!exam) {
+      res.status(404);
+      throw new Error('Exam not found or not approved');
     }
 
     // Check if student has already attempted this exam
     const existingAttempt = await ExamResponse.findOne({
-      student: studentId,
-      'exam.ipfsHash': ipfsHash
+      exam: exam._id,
+      student: req.user._id
     });
 
     if (existingAttempt) {
-      logger.warn(`Student ${studentId} attempting to restart exam ${ipfsHash}`);
-      return res.status(400).json({
-        message: 'You have already attempted this exam'
-      });
+      res.status(400);
+      throw new Error('You have already attempted this exam');
     }
 
-    logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
-
-    // Find the exam with more details
-    const exam = await FileRequest.findOne({ 
-      ipfsHash,
-      status: 'approved'
-    })
-    .populate('institute', 'name')
-    .select('encryptedData encryptionKey examName timeLimit totalQuestions institute');
-    
-    if (!exam) {
-      logger.error('Exam not found or not approved for IPFS hash:', ipfsHash);
-      return res.status(404).json({
-        message: 'No approved exam found with this IPFS hash. Please verify the hash with your institute.'
-      });
-    }
-
-    // Decrypt exam data using the stored encryption key
-    let decryptedData;
     try {
-      // Use decryptFile since data was encrypted with encryptFile
-      decryptedData = decryptFile(exam.encryptedData, exam.encryptionKey);
+      logger.info('Fetching exam data from IPFS...');
+      // Fetch encrypted data from IPFS
+      const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
+      
+      if (!response.data || !response.data.iv || !response.data.encryptedData) {
+        throw new Error('Invalid data format from IPFS');
+      }
+
+      logger.info('Decrypting exam data...');
+      // Decrypt the exam data using the stored IPFS encryption key
+      const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
       
       if (!decryptedData || !decryptedData.questions) {
         throw new Error('Invalid exam data structure');
       }
-    } catch (decryptError) {
-      logger.error('Decryption error:', decryptError);
-      return res.status(500).json({
-        message: 'Unable to process exam data. Please contact your institute.'
+
+      // Validate questions format
+      if (!Array.isArray(decryptedData.questions)) {
+        throw new Error('Invalid questions format');
+      }
+
+      logger.info('Preparing exam data for student...');
+      // Return exam data without correct answers
+      const sanitizedQuestions = decryptedData.questions.map(q => ({
+        text: q.question,
+        options: q.options
+      }));
+
+      res.json({
+        _id: exam._id,
+        examName: exam.examName,
+        timeLimit: exam.timeLimit,
+        totalQuestions: exam.totalQuestions,
+        questions: sanitizedQuestions
       });
+
+    } catch (error) {
+      logger.error('Exam preparation error:', error);
+      res.status(500);
+      throw new Error('Failed to prepare exam content');
     }
 
-    // Create exam response with more details
-    const examResponse = await ExamResponse.create({
-      student: studentId,
-      exam: {
-        _id: exam._id,
-        ipfsHash: ipfsHash,
-        examName: exam.examName,
-        instituteName: exam.institute?.name,
-        timeLimit: exam.timeLimit,
-        totalQuestions: exam.totalQuestions
-      },
-      startTime: new Date(),
-      status: 'in-progress',
-      answers: {},
-      timeRemaining: exam.timeLimit * 60
-    });
-
-    // Remove correct answers from questions before sending to student
-    const sanitizedQuestions = decryptedData.questions.map(q => ({
-      question: q.question,
-      options: q.options
-    }));
-
-    // Send exam data with more details
-    return res.json({
-      examResponseId: examResponse._id,
-      examName: exam.examName,
-      instituteName: exam.institute?.name,
-      questions: sanitizedQuestions,
-      totalQuestions: exam.totalQuestions,
-      timeLimit: exam.timeLimit || 60
-    });
-
   } catch (error) {
-    logger.error('Exam start error:', error);
-    return res.status(500).json({
-      message: 'Failed to start exam. Please try again later.'
-    });
+    logger.error('Start exam error:', error);
+    res.status(error.status || 500);
+    throw new Error(`Failed to start exam: ${error.message}`);
   }
 });
 
@@ -169,7 +133,7 @@ const submitExam = asyncHandler(async (req, res) => {
 
     // Get and decrypt exam data
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
-    const decryptedData = decryptFile(response.data, exam.encryptionKey);
+    const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
 
     // Calculate score with detailed analysis
     let correctAnswers = 0;

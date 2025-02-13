@@ -32,8 +32,8 @@ const validateQuestionFormat = (questions) => {
     if (!Array.isArray(q.options) || q.options.length !== 4) {
       throw new Error(`Question ${index + 1} must have exactly 4 options`);
     }
-    if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 0 || q.correctAnswer > 3) {
-      throw new Error(`Question ${index + 1} has invalid correct answer index`);
+    if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 1 || q.correctAnswer > 4) {
+      throw new Error(`Question ${index + 1} has invalid correct answer index (must be 1-4)`);
     }
   });
   return true;
