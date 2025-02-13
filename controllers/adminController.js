@@ -163,132 +163,43 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       throw new Error('Request not found');
     }
 
-    if (!['approved', 'rejected'].includes(status)) {
-      res.status(400);
-      throw new Error('Invalid status');
-    }
-
     // Process IPFS upload only for approved requests
     if (status === 'approved') {
       try {
         logger.info('Starting approval process...');
-        logger.info('File Request Data:', {
-          examName: fileRequest.examName,
-          hasEncryptedData: !!fileRequest.encryptedData,
-          hasEncryptionKey: !!fileRequest.encryptionKey,
-          encryptedDataType: typeof fileRequest.encryptedData
-        });
         
-        // Step 1: Decrypt the stored data
+        // Step 1: Decrypt the stored exam data
         let decryptedData;
         try {
-          logger.info('Attempting to decrypt data');
-          
-          if (!fileRequest.encryptedData) {
-            throw new Error('No encrypted data found');
-          }
-          if (!fileRequest.encryptionKey) {
-            throw new Error('No encryption key found');
-          }
-
-          // Convert any Buffer or object to string
-          let encryptedDataString = fileRequest.encryptedData;
-          if (Buffer.isBuffer(encryptedDataString)) {
-            encryptedDataString = encryptedDataString.toString('utf8');
-          } else if (typeof encryptedDataString === 'object') {
-            encryptedDataString = JSON.stringify(encryptedDataString);
-          }
-
-          logger.info('Encrypted data string:', encryptedDataString.substring(0, 100) + '...');
-          
-          // Try decryption with error recovery
-          let decryptedData;
-          try {
-            decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
-          } catch (firstError) {
-            logger.warn('First decryption attempt failed:', firstError);
-            // Try alternative decryption if first attempt fails
-            try {
-              const altEncryptedData = Buffer.from(encryptedDataString, 'base64').toString('utf8');
-              decryptedData = decryptFile(altEncryptedData, fileRequest.encryptionKey);
-            } catch (secondError) {
-              logger.error('All decryption attempts failed');
-              throw new Error(`Decryption failed after multiple attempts: ${firstError.message}`);
-            }
-          }
-
-          // Ensure we have valid data
-          if (!decryptedData) {
-            throw new Error('Decryption resulted in empty data');
-          }
-
-          // Convert string to JSON if needed
-          if (typeof decryptedData === 'string') {
-            try {
-              decryptedData = JSON.parse(decryptedData);
-            } catch (parseError) {
-              logger.warn('Decrypted data is not JSON, using as is');
-            }
-          }
-
+          logger.info('Decrypting stored data...');
+          decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
           logger.info('Successfully decrypted data');
-
-        } catch (error) {
-          logger.error('Decryption error details:', {
-            error: error.message,
-            stack: error.stack,
-            encryptedDataSample: fileRequest.encryptedData ? 
-              fileRequest.encryptedData.toString().substring(0, 100) + '...' : 
-              'No data'
-          });
-          throw new Error(`Decryption failed: ${error.message}`);
+        } catch (decryptError) {
+          logger.error('Decryption failed:', decryptError);
+          throw new Error(`Decryption failed: ${decryptError.message}`);
         }
 
-        // Step 2: Generate new encryption key for IPFS
-        ipfsKey = generateEncryptionKey();
-        logger.info('Generated new IPFS encryption key');
+        // Step 2: Upload to IPFS with new encryption
+        try {
+          logger.info('Preparing IPFS upload...');
+          const { ipfsHash: hash, encryptionKey } = await uploadEncryptedToPinata(decryptedData);
+          ipfsHash = hash;
+          ipfsKey = encryptionKey;
+          
+          // Save IPFS details to the request
+          fileRequest.ipfsHash = ipfsHash;
+          fileRequest.ipfsEncryptionKey = ipfsKey;
+          logger.info('Successfully uploaded to IPFS:', ipfsHash);
+        } catch (ipfsError) {
+          logger.error('IPFS upload failed:', ipfsError);
+          throw new Error(`IPFS upload failed: ${ipfsError.message}`);
+        }
 
-        // Step 3: Encrypt for IPFS
-        logger.info('Encrypting for IPFS...');
-        const encryptedForIPFS = encryptForIPFS(decryptedData, ipfsKey);
-        logger.info('Successfully encrypted for IPFS');
-
-        // Step 4: Upload to Pinata
-        logger.info('Preparing Pinata upload...');
-        const pinataData = {
-          pinataOptions: { cidVersion: 1 },
-          pinataMetadata: {
-            name: `exam_${fileRequest.examName}_${Date.now()}`,
-            keyvalues: { 
-              type: "encrypted_exam",
-              examName: fileRequest.examName
-            }
-          },
-          pinataContent: encryptedForIPFS
-        };
-
-        logger.info('Uploading to Pinata...');
-        const pinataResponse = await axios.post(
-          'https://api.pinata.cloud/pinning/pinJSONToIPFS',
-          pinataData,
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${PINATA_JWT}`
-            }
-          }
-        );
-
-        ipfsHash = pinataResponse.data.IpfsHash;
-        fileRequest.ipfsHash = ipfsHash;
-        fileRequest.ipfsEncryptionKey = ipfsKey;
-        logger.info('Successfully uploaded to IPFS:', ipfsHash);
-
-        // Step 5: Send email notification
+        // Step 3: Send email notification
         try {
           await sendEmail({
             to: fileRequest.institute.email,
-            subject: `Exam Request APPROVED - ${fileRequest.examName}`,
+            subject: `Exam Request Approved - ${fileRequest.examName}`,
             html: examApprovalTemplate({
               instituteName: fileRequest.institute.name,
               examName: fileRequest.examName,
@@ -303,14 +214,12 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           logger.info('Approval email sent successfully');
         } catch (emailError) {
           logger.error('Email sending error:', emailError);
+          // Continue even if email fails
         }
 
       } catch (error) {
-        logger.error('IPFS process error:', {
-          message: error.message,
-          stack: error.stack
-        });
-        throw new Error(`IPFS process failed: ${error.message}`);
+        logger.error('Approval process error:', error);
+        throw new Error(`Approval process failed: ${error.message}`);
       }
     } else if (status === 'rejected') {
       // Send rejection email
@@ -347,10 +256,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Status update error:', {
-      message: error.message,
-      stack: error.stack
-    });
+    logger.error('Status update error:', error);
     res.status(500).json({
       message: `Failed to process ${status}`,
       error: error.message
