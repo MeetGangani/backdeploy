@@ -12,9 +12,11 @@ import { protect } from '../middleware/authMiddleware.js';
 const router = express.Router();
 
 // Student routes
+router.route('/submit')
+  .post(protect, submitExam);
+
 router.get('/available', protect, getAvailableExams);
 router.post('/start', protect, startExam);
-router.post('/submit', protect, submitExam);
 router.get('/my-results', protect, getMyResults);
 
 // Institute routes

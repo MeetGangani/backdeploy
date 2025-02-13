@@ -166,6 +166,12 @@ const startExam = asyncHandler(async (req, res) => {
 const submitExam = asyncHandler(async (req, res) => {
   const { examId, answers } = req.body;
 
+  logger.info('Received exam submission:', {
+    examId,
+    answersCount: Object.keys(answers).length,
+    userId: req.user._id
+  });
+
   try {
     logger.info(`Processing exam submission for exam: ${examId}`);
 
@@ -256,7 +262,12 @@ const submitExam = asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Submit exam error:', error);
+    logger.error('Submit exam error:', {
+      error: error.message,
+      stack: error.stack,
+      examId,
+      userId: req.user._id
+    });
     res.status(500);
     throw new Error('Failed to submit exam');
   }

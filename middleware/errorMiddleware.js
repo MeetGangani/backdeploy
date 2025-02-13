@@ -29,6 +29,14 @@ const errorHandler = (err, req, res, next) => {
     message = Object.values(err.errors).map(e => e.message).join(', ');
   }
 
+  // Log the error
+  console.error('Error:', {
+    message: err.message,
+    stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack,
+    path: req.path,
+    method: req.method
+  });
+
   res.status(statusCode).json({
     message: message,
     stack: process.env.NODE_ENV === 'production' ? null : err.stack,
