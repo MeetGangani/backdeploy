@@ -43,10 +43,7 @@ const encryptFile = (data, secretKey) => {
 // Decrypt file from storage
 const decryptFile = (encryptedData, key) => {
   try {
-    console.log('Attempting to decrypt with:', {
-      keyLength: key.length,
-      encryptedDataSample: encryptedData.substring(0, 100)
-    });
+    console.log('Starting decryption process...');
 
     // Split IV and encrypted data
     const [ivString, encryptedString] = encryptedData.split(':');
@@ -54,62 +51,72 @@ const decryptFile = (encryptedData, key) => {
       throw new Error('Invalid encrypted data format');
     }
 
-    // Convert key to WordArray
+    // Convert key to proper format
     const keyBytes = Buffer.from(key, 'hex');
     const keyWordArray = CryptoJS.lib.WordArray.create(keyBytes);
 
     // Convert IV from Base64
     const iv = CryptoJS.enc.Base64.parse(ivString);
     
-    // Decrypt using CryptoJS
+    // Decrypt data
     const decrypted = CryptoJS.AES.decrypt(encryptedString, keyWordArray, {
       iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7
     });
     
-    // Convert to string
+    // Convert to string and validate
     const decryptedString = decrypted.toString(CryptoJS.enc.Utf8);
     if (!decryptedString) {
       throw new Error('Decryption resulted in empty string');
     }
     
-    // Parse JSON
+    // Parse JSON if possible
     try {
       return JSON.parse(decryptedString);
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
+      console.log('Returning raw decrypted string as JSON parsing failed');
       return decryptedString;
     }
   } catch (error) {
     console.error('Decryption error:', {
       message: error.message,
-      stack: error.stack,
-      inputSample: encryptedData.substring(0, 100)
+      stack: error.stack
     });
-    throw new Error(`Failed to decrypt file: ${error.message}`);
+    throw new Error(`Decryption failed: ${error.message}`);
   }
 };
 
-// Encrypt for IPFS (using different method)
+// Encrypt for IPFS with better error handling
 const encryptForIPFS = (data, key) => {
   try {
+    // Ensure data is properly stringified
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
+    
+    // Convert key to proper format
     const keyBuffer = Buffer.from(key, 'hex');
+    if (keyBuffer.length !== 32) {
+      throw new Error('Invalid encryption key length');
+    }
+
+    // Generate IV
     const iv = crypto.randomBytes(16);
     
+    // Create cipher and encrypt
     const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
     let encrypted = cipher.update(dataString, 'utf8', 'base64');
     encrypted += cipher.final('base64');
     
+    // Return encrypted data with metadata
     return {
       iv: iv.toString('base64'),
       encryptedData: encrypted,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      version: '1.0' // Add version for future compatibility
     };
   } catch (error) {
     console.error('IPFS encryption error:', error);
-    throw new Error('Failed to encrypt for IPFS');
+    throw new Error(`Failed to encrypt for IPFS: ${error.message}`);
   }
 };
 

@@ -171,7 +171,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         // Step 1: Decrypt the stored exam data
         let decryptedData;
         try {
-          logger.info('Decrypting stored data...');
+          logger.info('Decrypting stored data with key:', fileRequest.encryptionKey);
           decryptedData = decryptFile(fileRequest.encryptedData, fileRequest.encryptionKey);
           logger.info('Successfully decrypted data');
         } catch (decryptError) {
@@ -195,66 +195,38 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           throw new Error(`IPFS upload failed: ${ipfsError.message}`);
         }
 
-        // Step 3: Send email notification
-        try {
-          await sendEmail({
-            to: fileRequest.institute.email,
-            subject: `Exam Request Approved - ${fileRequest.examName}`,
-            html: examApprovalTemplate({
-              instituteName: fileRequest.institute.name,
-              examName: fileRequest.examName,
-              status: 'approved',
-              ipfsHash,
-              ipfsEncryptionKey: ipfsKey,
-              totalQuestions: fileRequest.totalQuestions,
-              timeLimit: fileRequest.timeLimit,
-              adminComment
-            })
-          });
-          logger.info('Approval email sent successfully');
-        } catch (emailError) {
-          logger.error('Email sending error:', emailError);
-          // Continue even if email fails
-        }
+        // Update request status and save
+        fileRequest.status = status;
+        fileRequest.adminComment = adminComment;
+        fileRequest.reviewedAt = Date.now();
+        fileRequest.reviewedBy = req.user._id;
+        await fileRequest.save();
+
+        // Send success response
+        res.json({
+          message: 'Request approved and uploaded to IPFS successfully',
+          status: fileRequest.status,
+          ipfsHash,
+          ipfsEncryptionKey: ipfsKey
+        });
 
       } catch (error) {
         logger.error('Approval process error:', error);
         throw new Error(`Approval process failed: ${error.message}`);
       }
-    } else if (status === 'rejected') {
-      // Send rejection email
-      try {
-        await sendEmail({
-          to: fileRequest.institute.email,
-          subject: `Exam Request REJECTED - ${fileRequest.examName}`,
-          html: examApprovalTemplate({
-            instituteName: fileRequest.institute.name,
-            examName: fileRequest.examName,
-            status: 'rejected',
-            adminComment
-          })
-        });
-        logger.info('Rejection email sent successfully');
-      } catch (emailError) {
-        logger.error('Email sending error:', emailError);
-      }
+    } else {
+      // Handle rejection
+      fileRequest.status = status;
+      fileRequest.adminComment = adminComment;
+      fileRequest.reviewedAt = Date.now();
+      fileRequest.reviewedBy = req.user._id;
+      await fileRequest.save();
+
+      res.json({
+        message: 'Request rejected successfully',
+        status: fileRequest.status
+      });
     }
-
-    // Update request status
-    fileRequest.status = status;
-    fileRequest.adminComment = adminComment;
-    fileRequest.reviewedAt = Date.now();
-    fileRequest.reviewedBy = req.user._id;
-
-    await fileRequest.save();
-
-    res.json({
-      message: `Request ${status} successfully`,
-      status: fileRequest.status,
-      ipfsHash: status === 'approved' ? ipfsHash : undefined,
-      ipfsEncryptionKey: status === 'approved' ? ipfsKey : undefined
-    });
-
   } catch (error) {
     logger.error('Status update error:', error);
     res.status(500).json({
