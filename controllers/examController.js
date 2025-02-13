@@ -313,32 +313,25 @@ const getMyResults = asyncHandler(async (req, res) => {
       path: 'exam',
       select: 'examName resultsReleased'
     })
-    .select('score correctAnswers totalQuestions submittedAt status')
+    .select('score correctAnswers totalQuestions submittedAt')
     .sort('-submittedAt')
     .lean();
 
     logger.info('Raw results from DB:', results);
 
     // Format results and hide scores if not released
-    const formattedResults = (results || []).map(result => {
-      // Ensure we have valid numbers for score and answers
-      const score = typeof result.score === 'number' ? result.score : null;
-      const correctAnswers = typeof result.correctAnswers === 'number' ? result.correctAnswers : null;
-      const totalQuestions = typeof result.totalQuestions === 'number' ? result.totalQuestions : null;
-
-      return {
-        _id: result._id,
-        exam: {
-          examName: result.exam?.examName || 'N/A',
-          resultsReleased: Boolean(result.exam?.resultsReleased)
-        },
-        score: result.exam?.resultsReleased ? score : null,
-        correctAnswers: result.exam?.resultsReleased ? correctAnswers : null,
-        totalQuestions: totalQuestions,
-        submittedAt: result.submittedAt,
-        status: result.status
-      };
-    });
+    const formattedResults = (results || []).map(result => ({
+      _id: result._id,
+      exam: {
+        examName: result.exam?.examName || 'N/A',
+        resultsReleased: result.exam?.resultsReleased || false
+      },
+      // Only include score and details if results are released
+      score: result.exam?.resultsReleased ? result.score : null,
+      correctAnswers: result.exam?.resultsReleased ? result.correctAnswers : null,
+      totalQuestions: result.totalQuestions,
+      submittedAt: result.submittedAt
+    }));
 
     logger.info('Formatted results:', formattedResults);
     res.json(formattedResults);
