@@ -147,13 +147,29 @@ const registerUser = asyncHandler(async (req, res) => {
 // @desc    Logout user / clear cookie
 // @route   POST /api/users/logout
 // @access  Public
-const logoutUser = (req, res) => {
-  res.cookie('jwt', '', {
-    httpOnly: true,
-    expires: new Date(0),
-  });
-  res.status(200).json({ message: 'Logged out successfully' });
-};
+const logout = asyncHandler(async (req, res) => {
+  try {
+    // Clear the JWT cookie
+    res.cookie('jwt', '', {
+      httpOnly: true,
+      expires: new Date(0),
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/'
+    });
+
+    // Clear any session data if you're using sessions
+    if (req.session) {
+      req.session.destroy();
+    }
+
+    res.status(200).json({ message: 'Logged out successfully' });
+  } catch (error) {
+    logger.error('Logout error:', error);
+    res.status(500);
+    throw new Error('Error during logout');
+  }
+});
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -232,7 +248,7 @@ const checkAuth = asyncHandler(async (req, res) => {
 export {
   authUser,
   registerUser,
-  logoutUser,
+  logout,
   getUserProfile,
   updateUserProfile,
   googleAuth,
