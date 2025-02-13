@@ -42,29 +42,20 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// CORS configuration
+// CORS configuration for Vercel frontend
 const corsOptions = {
   origin: [
     'https://nexusedu-jade.vercel.app',
     'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-    // Add any other frontend URLs that need access
     process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null
-  ].filter(Boolean), // Remove null values
+  ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization'
-  ]
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
 };
 
-// Apply CORS middleware
+// Apply middleware
 app.use(cors(corsOptions));
-
-// Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -128,46 +119,17 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/exams', examRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Serve frontend in production
-if (process.env.NODE_ENV === 'production') {
-  // Security headers for production
-  app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    next();
-  });
-
-  const __dirname = path.resolve();
-  app.use(express.static(path.join(__dirname, '/frontend/dist')));
-
-  app.get('*', (req, res) =>
-    res.sendFile(path.resolve(__dirname, 'frontend', 'dist', 'index.html'))
-  );
-} else {
-  app.get('/', (req, res) => {
-    res.send('API is running....');
-  });
-}
+// Basic route for API health check
+app.get('/', (req, res) => {
+  res.json({ message: 'API is running' });
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  
-  // Handle CORS errors
-  if (err.name === 'CORSError') {
-    return res.status(403).json({
-      message: 'CORS error: Not allowed by CORS policy',
-      error: err.message
-    });
-  }
-
-  // Handle other errors
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
-  res.status(statusCode);
-  res.json({
-    message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    message: err.message || 'Internal Server Error',
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 });
 
@@ -190,3 +152,5 @@ process.on('uncaughtException', (err) => {
   // Close server & exit process
   server.close(() => process.exit(1));
 });
+
+export default app;
