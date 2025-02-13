@@ -33,7 +33,10 @@ const encryptFile = (data, secretKey) => {
     encrypted += cipher.final('base64');
     
     // Combine IV and encrypted data
-    return `${iv.toString('base64')}:${encrypted}`;
+    const result = `${iv.toString('base64')}:${encrypted}`;
+    
+    // Return base64 encoded string for consistent storage
+    return Buffer.from(result).toString('base64');
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt file');
@@ -43,7 +46,6 @@ const encryptFile = (data, secretKey) => {
 // Decrypt file from storage
 const decryptFile = (encryptedData, key) => {
   try {
-    // Log input data for debugging
     console.log('Decrypting data:', {
       dataType: typeof encryptedData,
       hasData: !!encryptedData,
@@ -57,14 +59,34 @@ const decryptFile = (encryptedData, key) => {
       throw new Error('Missing required decryption parameters');
     }
 
-    // Ensure we're working with strings
-    const encryptedString = encryptedData.toString();
-    const keyString = key.toString();
+    // First, try to decode base64 if the data is base64 encoded
+    let decodedData;
+    try {
+      // Check if the string is base64 encoded
+      if (/^[A-Za-z0-9+/=]+$/.test(encryptedData)) {
+        decodedData = Buffer.from(encryptedData, 'base64').toString('utf8');
+        console.log('Decoded base64 data:', decodedData.substring(0, 100));
+      } else {
+        decodedData = encryptedData;
+      }
+    } catch (decodeError) {
+      console.error('Base64 decode error:', decodeError);
+      decodedData = encryptedData; // Use original if decode fails
+    }
 
     // Split IV and encrypted data
-    const parts = encryptedString.split(':');
+    const parts = decodedData.split(':');
     if (parts.length !== 2) {
-      throw new Error(`Invalid encrypted data format. Expected format: "iv:encryptedData", got: "${encryptedString.substring(0, 50)}..."`);
+      // Try one more base64 decode if splitting failed
+      try {
+        const secondDecode = Buffer.from(decodedData, 'base64').toString('utf8');
+        parts = secondDecode.split(':');
+        if (parts.length !== 2) {
+          throw new Error(`Invalid encrypted data format after second decode. Got: "${secondDecode.substring(0, 50)}..."`);
+        }
+      } catch (error) {
+        throw new Error(`Invalid encrypted data format. Expected format: "iv:encryptedData", got: "${decodedData.substring(0, 50)}..."`);
+      }
     }
 
     const [ivString, encryptedContent] = parts;
@@ -75,7 +97,7 @@ const decryptFile = (encryptedData, key) => {
     
     // Convert IV and key from string format
     const iv = Buffer.from(ivString, 'base64');
-    const keyBuffer = Buffer.from(keyString, 'hex');
+    const keyBuffer = Buffer.from(key, 'hex');
     
     // Create decipher
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
@@ -88,8 +110,9 @@ const decryptFile = (encryptedData, key) => {
     try {
       return JSON.parse(decrypted);
     } catch (parseError) {
-      console.error('Failed to parse decrypted data:', decrypted.substring(0, 100));
-      throw new Error('Failed to parse decrypted data as JSON');
+      console.log('Decrypted data (not JSON):', decrypted.substring(0, 100));
+      // If it's not JSON, return as is
+      return decrypted;
     }
   } catch (error) {
     console.error('Decryption error:', {

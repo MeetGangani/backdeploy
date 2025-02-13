@@ -206,6 +206,16 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
           
           // Attempt decryption
           decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
+          
+          // Ensure decryptedData is in the correct format
+          if (typeof decryptedData === 'string') {
+            try {
+              decryptedData = JSON.parse(decryptedData);
+            } catch (parseError) {
+              logger.warn('Decrypted data is not JSON, using as is');
+            }
+          }
+          
           logger.info('Successfully decrypted data');
 
         } catch (decryptError) {
