@@ -2,7 +2,7 @@ import CryptoJS from 'crypto-js';
 import crypto from 'crypto';
 
 // Generate a random encryption key
-const generateEncryptionKey = () => {
+export const generateEncryptionKey = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
@@ -17,7 +17,7 @@ const binaryToJson = (buffer) => {
 };
 
 // Encrypt file for initial storage
-const encryptFile = (data, secretKey) => {
+export const encryptFile = (data, secretKey) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -39,7 +39,7 @@ const encryptFile = (data, secretKey) => {
 };
 
 // Decrypt file from storage
-const decryptFile = (encryptedData, key) => {
+export const decryptFile = (encryptedData, key) => {
   try {
     // Split IV and encrypted data
     const [ivString, encryptedString] = encryptedData.split(':');
@@ -66,7 +66,7 @@ const decryptFile = (encryptedData, key) => {
 };
 
 // Encrypt for IPFS
-const encryptForIPFS = (data, key) => {
+export const encryptForIPFS = (data, key) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -95,7 +95,7 @@ const encryptForIPFS = (data, key) => {
 };
 
 // Decrypt data from IPFS
-const decryptFromIPFS = (encryptedObject, key) => {
+export const decryptFromIPFS = (encryptedObject, key) => {
   try {
     // Convert the hex key to bytes
     const keyBytes = Buffer.from(key, 'hex');
@@ -119,7 +119,7 @@ const decryptFromIPFS = (encryptedObject, key) => {
 };
 
 // Process file function
-const processFile = (buffer) => {
+export const processFile = (buffer) => {
   try {
     // Parse JSON content
     const jsonContent = JSON.parse(buffer.toString());
@@ -139,12 +139,6 @@ const processFile = (buffer) => {
 
 // Single export statement for all functions
 export {
-  generateEncryptionKey,
   jsonToBinary,
-  binaryToJson,
-  encryptFile,
-  decryptFile,
-  encryptForIPFS,
-  decryptFromIPFS,
-  processFile
+  binaryToJson
 };

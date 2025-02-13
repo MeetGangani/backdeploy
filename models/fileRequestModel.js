@@ -1,5 +1,20 @@
 import mongoose from 'mongoose';
 
+const questionSchema = new mongoose.Schema({
+  question: {
+    type: String,
+    required: true
+  },
+  options: [{
+    type: String,
+    required: true
+  }],
+  correctAnswer: {
+    type: Number, // Index of correct option (0-3)
+    required: true
+  }
+});
+
 const fileRequestSchema = new mongoose.Schema({
   institute: {
     type: mongoose.Schema.Types.ObjectId,
@@ -61,12 +76,13 @@ const fileRequestSchema = new mongoose.Schema({
   timeLimit: {
     type: Number,
     default: 60 // 60 minutes default
-  }
+  },
+  questions: [questionSchema] // Will be populated after decryption
 }, {
   timestamps: true
 });
 
-// Add indexes for better query performance
+// Add index for better query performance
 fileRequestSchema.index({ institute: 1, status: 1 });
 fileRequestSchema.index({ status: 1, createdAt: -1 });
 

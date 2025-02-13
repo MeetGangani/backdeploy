@@ -11,16 +11,6 @@ const examResponseSchema = new mongoose.Schema({
     ref: 'FileRequest',
     required: true
   },
-  startTime: {
-    type: Date,
-    required: true
-  },
-  endTime: Date,
-  status: {
-    type: String,
-    enum: ['in-progress', 'completed', 'timed-out'],
-    default: 'in-progress'
-  },
   answers: {
     type: Map,
     of: Number,
@@ -38,7 +28,6 @@ const examResponseSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  timeRemaining: Number,
   submittedAt: {
     type: Date,
     default: Date.now
@@ -47,9 +36,5 @@ const examResponseSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Add index for querying
-examResponseSchema.index({ student: 1, 'exam.ipfsHash': 1 });
-
 const ExamResponse = mongoose.model('ExamResponse', examResponseSchema);
-
 export default ExamResponse; 

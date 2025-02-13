@@ -1,66 +1,69 @@
 import asyncHandler from 'express-async-handler';
-import Upload from '../models/uploadModel.js';
+import FileRequest from '../models/fileRequestModel.js';
+import { processFile } from '../utils/encryptionUtils.js';
 
-// @desc    Upload exam file
-// @route   POST /api/upload
-// @access  Private/Institute
+// Get institute's uploads
+const getMyUploads = asyncHandler(async (req, res) => {
+  try {
+    const uploads = await FileRequest.find({ 
+      institute: req.user._id 
+    }).sort('-createdAt');
+
+    res.json(uploads);
+  } catch (error) {
+    console.error('Get uploads error:', error);
+    res.status(500);
+    throw new Error('Failed to fetch uploads');
+  }
+});
+
+// Upload file
 const uploadFile = asyncHandler(async (req, res) => {
   try {
-    if (!req.file) {
+    if (!req.files || !req.files.file) {
       res.status(400);
       throw new Error('No file uploaded');
     }
 
-    // Parse the JSON content
-    const jsonContent = JSON.parse(req.file.buffer.toString());
+    const { examName, description } = req.body;
+    if (!examName || !description) {
+      res.status(400);
+      throw new Error('Please provide exam name and description');
+    }
 
-    // Create new upload document
-    const upload = await Upload.create({
+    const file = req.files.file;
+    
+    // Process and encrypt file
+    const { encrypted: encryptedData, encryptionKey } = await processFile(file.data);
+
+    // Create file request
+    const fileRequest = await FileRequest.create({
       institute: req.user._id,
-      examName: req.body.examName,
-      description: req.body.description,
-      questions: jsonContent.questions,
-      totalQuestions: jsonContent.questions.length,
-      status: 'pending',
-      file: {
-        data: req.file.buffer,
-        contentType: req.file.mimetype
+      examName,
+      description,
+      encryptedData,
+      encryptionKey,
+      totalQuestions: JSON.parse(file.data).questions.length,
+      status: 'pending'
+    });
+
+    res.status(201).json({
+      message: 'File uploaded successfully',
+      fileRequest: {
+        _id: fileRequest._id,
+        examName: fileRequest.examName,
+        status: fileRequest.status
       }
     });
 
-    if (upload) {
-      res.status(201).json({
-        message: 'File uploaded successfully',
-        upload: {
-          _id: upload._id,
-          examName: upload.examName,
-          description: upload.description,
-          totalQuestions: upload.totalQuestions,
-          status: upload.status,
-          createdAt: upload.createdAt
-        }
-      });
-    } else {
-      res.status(400);
-      throw new Error('Invalid upload data');
-    }
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({
-      message: 'Error uploading file',
-      error: error.message
-    });
+    res.status(500);
+    throw new Error(`Failed to upload file: ${error.message}`);
   }
 });
 
-// @desc    Get my uploads
-// @route   GET /api/upload/my-uploads
-// @access  Private/Institute
-const getMyUploads = asyncHandler(async (req, res) => {
-  const uploads = await Upload.find({ institute: req.user._id })
-    .select('-file.data')
-    .sort('-createdAt');
-  res.json(uploads);
-});
-
-export { uploadFile, getMyUploads }; 
+export {
+  uploadFile,
+  getMyUploads
+}; 
