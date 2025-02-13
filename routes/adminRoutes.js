@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, adminOnly } from '../middleware/authMiddleware.js';
+import { protect, admin } from '../middleware/authMiddleware.js';
 import { 
   getRequests, 
   updateRequestStatus, 
@@ -8,9 +8,8 @@ import {
 
 const router = express.Router();
 
-// Protect all routes with admin middleware
-router.use(protect);
-router.use(adminOnly);
+// Apply admin middleware to all routes
+router.use(protect, admin);
 
 router.get('/requests', getRequests);
 router.get('/dashboard', getDashboardStats);
