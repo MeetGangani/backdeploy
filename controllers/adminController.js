@@ -245,7 +245,25 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
 
         logger.info('Request successfully approved and uploaded to IPFS');
         
-        // Send success response
+        // Send approval email using the template
+        try {
+          await sendEmail({
+            to: fileRequest.institute.email,
+            subject: 'Exam Review Update - NexusEdu',
+            html: examApprovalTemplate({
+              instituteName: fileRequest.institute.name,
+              examName: fileRequest.examName,
+              status: 'approved',
+              feedback: adminComment,
+              ipfsHash: ipfsHash,
+              encryptionKey: ipfsKey
+            })
+          });
+          logger.info('Approval email sent successfully');
+        } catch (emailError) {
+          logger.error('Failed to send approval email:', emailError);
+        }
+
         res.json({
           message: 'Request approved and uploaded to IPFS successfully',
           status: fileRequest.status,
@@ -254,14 +272,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         });
 
       } catch (error) {
-        logger.error('Approval process error:', {
-          error: error.message,
-          stack: error.stack
-        });
-        res.status(500).json({
-          message: `Approval process failed: ${error.message}`,
-          error: error.message
-        });
+        logger.error('Approval process error:', error);
+        throw new Error(`Approval process failed: ${error.message}`);
       }
     } else {
       // Handle rejection
@@ -272,6 +284,23 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
       
       logger.info('Saving rejected file request');
       await fileRequest.save();
+
+      try {
+        // Send rejection email using the template
+        await sendEmail({
+          to: fileRequest.institute.email,
+          subject: 'Exam Review Update - NexusEdu',
+          html: examApprovalTemplate({
+            instituteName: fileRequest.institute.name,
+            examName: fileRequest.examName,
+            status: 'rejected',
+            feedback: adminComment
+          })
+        });
+        logger.info('Rejection email sent successfully');
+      } catch (emailError) {
+        logger.error('Failed to send rejection email:', emailError);
+      }
 
       res.json({
         message: 'Request rejected successfully',
