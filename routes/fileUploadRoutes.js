@@ -1,7 +1,7 @@
 import express from 'express';
 import { protect, instituteOnly } from '../middleware/authMiddleware.js';
 import { uploadFile, getMyUploads, getUploadDetails } from '../controllers/fileUploadController.js';
-import upload from '../middleware/uploadMiddleware.js';
+import { upload } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
