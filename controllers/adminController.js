@@ -182,7 +182,8 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         // Step 1: Decrypt the stored data
         let decryptedData;
         try {
-          // Check if we have the required data
+          logger.info('Attempting to decrypt data');
+          
           if (!fileRequest.encryptedData) {
             throw new Error('No encrypted data found');
           }
@@ -190,24 +191,38 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
             throw new Error('No encryption key found');
           }
 
-          logger.info('Attempting to decrypt data');
-          
-          // If encryptedData is stored as a Buffer or Object, convert it
-          let encryptedDataString;
-          if (Buffer.isBuffer(fileRequest.encryptedData)) {
-            encryptedDataString = fileRequest.encryptedData.toString('utf8');
-          } else if (typeof fileRequest.encryptedData === 'object') {
-            encryptedDataString = JSON.stringify(fileRequest.encryptedData);
-          } else {
-            encryptedDataString = fileRequest.encryptedData;
+          // Convert any Buffer or object to string
+          let encryptedDataString = fileRequest.encryptedData;
+          if (Buffer.isBuffer(encryptedDataString)) {
+            encryptedDataString = encryptedDataString.toString('utf8');
+          } else if (typeof encryptedDataString === 'object') {
+            encryptedDataString = JSON.stringify(encryptedDataString);
           }
 
           logger.info('Encrypted data string:', encryptedDataString.substring(0, 100) + '...');
           
-          // Attempt decryption
-          decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
-          
-          // Ensure decryptedData is in the correct format
+          // Try decryption with error recovery
+          let decryptedData;
+          try {
+            decryptedData = decryptFile(encryptedDataString, fileRequest.encryptionKey);
+          } catch (firstError) {
+            logger.warn('First decryption attempt failed:', firstError);
+            // Try alternative decryption if first attempt fails
+            try {
+              const altEncryptedData = Buffer.from(encryptedDataString, 'base64').toString('utf8');
+              decryptedData = decryptFile(altEncryptedData, fileRequest.encryptionKey);
+            } catch (secondError) {
+              logger.error('All decryption attempts failed');
+              throw new Error(`Decryption failed after multiple attempts: ${firstError.message}`);
+            }
+          }
+
+          // Ensure we have valid data
+          if (!decryptedData) {
+            throw new Error('Decryption resulted in empty data');
+          }
+
+          // Convert string to JSON if needed
           if (typeof decryptedData === 'string') {
             try {
               decryptedData = JSON.parse(decryptedData);
@@ -215,18 +230,18 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
               logger.warn('Decrypted data is not JSON, using as is');
             }
           }
-          
+
           logger.info('Successfully decrypted data');
 
-        } catch (decryptError) {
+        } catch (error) {
           logger.error('Decryption error details:', {
-            error: decryptError.message,
-            stack: decryptError.stack,
+            error: error.message,
+            stack: error.stack,
             encryptedDataSample: fileRequest.encryptedData ? 
               fileRequest.encryptedData.toString().substring(0, 100) + '...' : 
               'No data'
           });
-          throw new Error(`Decryption failed: ${decryptError.message}`);
+          throw new Error(`Decryption failed: ${error.message}`);
         }
 
         // Step 2: Generate new encryption key for IPFS

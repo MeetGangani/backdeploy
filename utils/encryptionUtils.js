@@ -22,7 +22,7 @@ const encryptFile = (data, secretKey) => {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
     
-    // Generate IV
+    // Generate IV (16 bytes)
     const iv = crypto.randomBytes(16);
     
     // Create cipher
@@ -32,10 +32,10 @@ const encryptFile = (data, secretKey) => {
     let encrypted = cipher.update(dataString, 'utf8', 'base64');
     encrypted += cipher.final('base64');
     
-    // Combine IV and encrypted data
-    const result = `${iv.toString('base64')}:${encrypted}`;
+    // Combine IV and encrypted data (using hex for IV)
+    const result = `${iv.toString('hex')}:${encrypted}`;
     
-    // Return base64 encoded string for consistent storage
+    // Return base64 encoded final result
     return Buffer.from(result).toString('base64');
   } catch (error) {
     console.error('Encryption error:', error);
@@ -59,59 +59,77 @@ const decryptFile = (encryptedData, key) => {
       throw new Error('Missing required decryption parameters');
     }
 
-    // First, try to decode base64 if the data is base64 encoded
+    // First base64 decode
     let decodedData;
     try {
-      // Check if the string is base64 encoded
-      if (/^[A-Za-z0-9+/=]+$/.test(encryptedData)) {
-        decodedData = Buffer.from(encryptedData, 'base64').toString('utf8');
-        console.log('Decoded base64 data:', decodedData.substring(0, 100));
-      } else {
-        decodedData = encryptedData;
-      }
-    } catch (decodeError) {
-      console.error('Base64 decode error:', decodeError);
-      decodedData = encryptedData; // Use original if decode fails
+      decodedData = Buffer.from(encryptedData, 'base64').toString('utf8');
+      console.log('First decode:', decodedData.substring(0, 100));
+    } catch (error) {
+      console.error('First base64 decode failed:', error);
+      decodedData = encryptedData;
     }
 
-    // Split IV and encrypted data
-    const parts = decodedData.split(':');
-    if (parts.length !== 2) {
-      // Try one more base64 decode if splitting failed
-      try {
-        const secondDecode = Buffer.from(decodedData, 'base64').toString('utf8');
-        parts = secondDecode.split(':');
-        if (parts.length !== 2) {
-          throw new Error(`Invalid encrypted data format after second decode. Got: "${secondDecode.substring(0, 50)}..."`);
-        }
-      } catch (error) {
-        throw new Error(`Invalid encrypted data format. Expected format: "iv:encryptedData", got: "${decodedData.substring(0, 50)}..."`);
+    // Split the decoded data
+    const [ivHex, encryptedContent] = decodedData.split(':');
+    
+    if (!ivHex || !encryptedContent) {
+      throw new Error('Invalid data format after decode');
+    }
+
+    // Convert hex IV to buffer (assuming IV is in hex format)
+    let iv;
+    try {
+      // Try hex decode first
+      iv = Buffer.from(ivHex, 'hex');
+      if (iv.length !== 16) {
+        // If not 16 bytes, try base64
+        iv = Buffer.from(ivHex, 'base64');
+      }
+    } catch (error) {
+      console.error('IV conversion failed:', error);
+      // Last resort: try to pad or truncate to 16 bytes
+      iv = Buffer.alloc(16);
+      const tempIv = Buffer.from(ivHex);
+      tempIv.copy(iv);
+    }
+
+    // Ensure IV is exactly 16 bytes
+    if (iv.length !== 16) {
+      iv = iv.slice(0, 16);
+      if (iv.length < 16) {
+        const temp = Buffer.alloc(16);
+        iv.copy(temp);
+        iv = temp;
       }
     }
 
-    const [ivString, encryptedContent] = parts;
-    
-    if (!ivString || !encryptedContent) {
-      throw new Error('Invalid encrypted data format: missing IV or content');
-    }
-    
-    // Convert IV and key from string format
-    const iv = Buffer.from(ivString, 'base64');
+    console.log('IV buffer length:', iv.length);
+    console.log('IV buffer:', iv.toString('hex'));
+
+    // Convert key to proper format
     const keyBuffer = Buffer.from(key, 'hex');
     
-    // Create decipher
+    // Create decipher with validated IV
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     
-    // Decrypt the data
-    let decrypted = decipher.update(encryptedContent, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
-    
-    // Try to parse the decrypted JSON
+    // Try to decrypt
+    let decrypted;
+    try {
+      decrypted = decipher.update(encryptedContent, 'base64', 'utf8');
+      decrypted += decipher.final('utf8');
+    } catch (error) {
+      console.error('Decipher operation failed:', error);
+      // Try alternative base64 decode of encrypted content
+      const altEncryptedContent = Buffer.from(encryptedContent, 'base64').toString('base64');
+      decrypted = decipher.update(altEncryptedContent, 'base64', 'utf8');
+      decrypted += decipher.final('utf8');
+    }
+
+    // Try to parse as JSON
     try {
       return JSON.parse(decrypted);
-    } catch (parseError) {
-      console.log('Decrypted data (not JSON):', decrypted.substring(0, 100));
-      // If it's not JSON, return as is
+    } catch (error) {
+      console.log('Not JSON, returning as string:', decrypted.substring(0, 100));
       return decrypted;
     }
   } catch (error) {
