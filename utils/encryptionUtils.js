@@ -2,22 +2,22 @@ import CryptoJS from 'crypto-js';
 import crypto from 'crypto';
 
 // Generate a random encryption key
-export const generateEncryptionKey = () => {
+const generateEncryptionKey = () => {
   return crypto.randomBytes(32).toString('hex');
 };
 
 // Convert JSON to binary buffer
-export const jsonToBinary = (jsonData) => {
+const jsonToBinary = (jsonData) => {
   return Buffer.from(JSON.stringify(jsonData));
 };
 
 // Convert binary to JSON
-export const binaryToJson = (buffer) => {
+const binaryToJson = (buffer) => {
   return JSON.parse(buffer.toString());
 };
 
 // Encrypt file for initial storage
-export const encryptFile = (data, secretKey) => {
+const encryptFile = (data, secretKey) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -39,7 +39,7 @@ export const encryptFile = (data, secretKey) => {
 };
 
 // Decrypt file from storage
-export const decryptFile = (encryptedData, key) => {
+const decryptFile = (encryptedData, key) => {
   try {
     // Split IV and encrypted data
     const [ivString, encryptedString] = encryptedData.split(':');
@@ -66,7 +66,7 @@ export const decryptFile = (encryptedData, key) => {
 };
 
 // Encrypt for IPFS
-export const encryptForIPFS = (data, key) => {
+const encryptForIPFS = (data, key) => {
   try {
     // Convert data to string if it's an object
     const dataString = typeof data === 'object' ? JSON.stringify(data) : data;
@@ -95,7 +95,7 @@ export const encryptForIPFS = (data, key) => {
 };
 
 // Decrypt data from IPFS
-export const decryptFromIPFS = (encryptedObject, key) => {
+const decryptFromIPFS = (encryptedObject, key) => {
   try {
     // Convert the hex key to bytes
     const keyBytes = Buffer.from(key, 'hex');
@@ -119,7 +119,7 @@ export const decryptFromIPFS = (encryptedObject, key) => {
 };
 
 // Process file function
-export const processFile = (buffer) => {
+const processFile = (buffer) => {
   try {
     // Parse JSON content
     const jsonContent = JSON.parse(buffer.toString());
@@ -137,10 +137,14 @@ export const processFile = (buffer) => {
   }
 };
 
-// Export all functions
+// Single export statement for all functions
 export {
+  generateEncryptionKey,
+  jsonToBinary,
+  binaryToJson,
+  encryptFile,
   decryptFile,
-  decryptFromIPFS,
   encryptForIPFS,
+  decryptFromIPFS,
   processFile
 };
