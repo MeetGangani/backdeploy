@@ -149,23 +149,40 @@ const registerUser = asyncHandler(async (req, res) => {
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
   try {
-    // Clear the JWT cookie
+    // Clear the JWT cookie with all necessary options
     res.cookie('jwt', '', {
       httpOnly: true,
       expires: new Date(0),
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+      domain: process.env.NODE_ENV === 'production' 
+        ? '.yourdomain.com'  // Replace with your actual domain
+        : 'localhost'
     });
 
-    // Clear any session data if you're using sessions
+    // Clear session if it exists
     if (req.session) {
-      req.session.destroy();
+      await new Promise((resolve, reject) => {
+        req.session.destroy((err) => {
+          if (err) reject(err);
+          resolve();
+        });
+      });
     }
 
-    res.status(200).json({ message: 'Logged out successfully' });
+    // Invalidate the token in the database or cache if you're storing it
+    if (req.user) {
+      // You might want to add a blacklist or invalidation mechanism here
+      // await BlacklistedToken.create({ token: req.cookies.jwt });
+    }
+
+    res.status(200).json({ 
+      message: 'Logged out successfully',
+      success: true 
+    });
   } catch (error) {
-    logger.error('Logout error:', error);
+    console.error('Logout error:', error);
     res.status(500);
     throw new Error('Error during logout');
   }
@@ -224,24 +241,37 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 // @access  Public
 const checkAuth = asyncHandler(async (req, res) => {
   try {
-    // Check if user is authenticated via JWT
-    if (req.cookies.jwt) {
-      const decoded = jwt.verify(req.cookies.jwt, process.env.JWT_SECRET);
-      const user = await User.findById(decoded.userId).select('-password');
-      
-      if (user) {
-        return res.json({
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          userType: user.userType,
-        });
-      }
+    const token = req.cookies.jwt;
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
     }
-    res.status(401).json({ message: 'Not authenticated' });
+
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if token is blacklisted (if you implement a blacklist)
+    // const isBlacklisted = await BlacklistedToken.findOne({ token });
+    // if (isBlacklisted) {
+    //   return res.status(401).json({ message: 'Token is no longer valid' });
+    // }
+
+    // Get user data
+    const user = await User.findById(decoded.userId).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      userType: user.userType,
+    });
   } catch (error) {
     console.error('Check auth error:', error);
-    res.status(401).json({ message: 'Not authenticated' });
+    res.status(401).json({ message: 'Invalid token' });
   }
 });
 
