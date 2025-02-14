@@ -200,6 +200,11 @@ const submitExam = asyncHandler(async (req, res) => {
 
     const score = (correctCount / totalQuestions) * 100;
 
+    // Update the exam to release results immediately after submission
+    await FileRequest.findByIdAndUpdate(examId, {
+      resultsReleased: true
+    });
+
     // Update the existing exam response
     examResponse.answers = answers;
     examResponse.score = score;
@@ -207,6 +212,7 @@ const submitExam = asyncHandler(async (req, res) => {
     examResponse.totalQuestions = totalQuestions;
     examResponse.submittedAt = new Date();
     examResponse.status = 'completed';
+    examResponse.resultsAvailable = true;
 
     await examResponse.save();
 
@@ -217,11 +223,13 @@ const submitExam = asyncHandler(async (req, res) => {
       totalQuestions
     });
 
+    // Return immediate results to student
     res.json({
       message: 'Exam submitted successfully',
       score,
       correctAnswers: correctCount,
-      totalQuestions
+      totalQuestions,
+      resultsAvailable: true
     });
 
   } catch (error) {
@@ -313,24 +321,22 @@ const getMyResults = asyncHandler(async (req, res) => {
       path: 'exam',
       select: 'examName resultsReleased'
     })
-    .select('score correctAnswers totalQuestions submittedAt')
+    .select('score correctAnswers totalQuestions submittedAt resultsAvailable')
     .sort('-submittedAt')
     .lean();
 
-    logger.info('Raw results from DB:', results);
-
-    // Format results and hide scores if not released
+    // Format results but show scores immediately after submission
     const formattedResults = (results || []).map(result => ({
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
-        resultsReleased: result.exam?.resultsReleased || false
+        resultsReleased: true // Always show results after submission
       },
-      // Only include score and details if results are released
-      score: result.exam?.resultsReleased ? result.score : null,
-      correctAnswers: result.exam?.resultsReleased ? result.correctAnswers : null,
+      score: result.score, // Always show score
+      correctAnswers: result.correctAnswers, // Always show correct answers
       totalQuestions: result.totalQuestions,
-      submittedAt: result.submittedAt
+      submittedAt: result.submittedAt,
+      resultsAvailable: true
     }));
 
     logger.info('Formatted results:', formattedResults);
