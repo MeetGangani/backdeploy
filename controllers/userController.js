@@ -149,16 +149,34 @@ const registerUser = asyncHandler(async (req, res) => {
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
   try {
-    // Clear the JWT cookie
+    // Clear the JWT cookie with all necessary options
     res.cookie('jwt', '', {
       httpOnly: true,
       expires: new Date(0),
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
+      domain: process.env.NODE_ENV === 'production' 
+        ? '.yourdomain.com'  // Replace with your actual domain
+        : 'localhost'
     });
 
-    // Send response before any redirects
+    // Clear session if it exists
+    if (req.session) {
+      await new Promise((resolve, reject) => {
+        req.session.destroy((err) => {
+          if (err) reject(err);
+          resolve();
+        });
+      });
+    }
+
+    // Invalidate the token in the database or cache if you're storing it
+    if (req.user) {
+      // You might want to add a blacklist or invalidation mechanism here
+      // await BlacklistedToken.create({ token: req.cookies.jwt });
+    }
+
     res.status(200).json({ 
       message: 'Logged out successfully',
       success: true 
@@ -222,41 +240,38 @@ const updateUserProfile = asyncHandler(async (req, res) => {
 // @route   GET /api/users/check-auth
 // @access  Public
 const checkAuth = asyncHandler(async (req, res) => {
-  const token = req.cookies.jwt;
-
-  if (!token) {
-    return res.status(401).json({ 
-      isAuthenticated: false,
-      message: 'No token provided' 
-    });
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-password');
+    const token = req.cookies.jwt;
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
 
+    // Verify the token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Check if token is blacklisted (if you implement a blacklist)
+    // const isBlacklisted = await BlacklistedToken.findOne({ token });
+    // if (isBlacklisted) {
+    //   return res.status(401).json({ message: 'Token is no longer valid' });
+    // }
+
+    // Get user data
+    const user = await User.findById(decoded.userId).select('-password');
+    
     if (!user) {
-      return res.status(401).json({ 
-        isAuthenticated: false,
-        message: 'User not found' 
-      });
+      return res.status(401).json({ message: 'User not found' });
     }
 
     res.json({
-      isAuthenticated: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-      }
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      userType: user.userType,
     });
   } catch (error) {
-    console.error('Token verification failed:', error);
-    res.status(401).json({ 
-      isAuthenticated: false,
-      message: 'Invalid token' 
-    });
+    console.error('Check auth error:', error);
+    res.status(401).json({ message: 'Invalid token' });
   }
 });
 
