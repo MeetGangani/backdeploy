@@ -150,7 +150,7 @@ const registerUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   try {
     // Clear the JWT cookie with all necessary options
-    res.cookie('jwt', '', {
+    res.clearCookie('jwt', '', {
       httpOnly: true,
       expires: new Date(0),
       secure: process.env.NODE_ENV === 'production',
@@ -160,6 +160,7 @@ const logoutUser = asyncHandler(async (req, res) => {
         ? '.yourdomain.com'  // Replace with your actual domain
         : 'localhost'
     });
+
 
     // Clear session if it exists
     if (req.session) {
