@@ -193,12 +193,21 @@ const submitExam = asyncHandler(async (req, res) => {
     const totalQuestions = decryptedData.questions.length;
 
     Object.entries(answers).forEach(([questionIndex, answer]) => {
-      if (decryptedData.questions[questionIndex]?.correctAnswer === answer) {
+      const correctAnswer = decryptedData.questions[questionIndex]?.correctAnswer;
+      if (correctAnswer !== undefined && correctAnswer === answer) {
         correctCount++;
       }
     });
 
-    const score = (correctCount / totalQuestions) * 100;
+    // Calculate score as a number, not a string
+    const score = Number(((correctCount / totalQuestions) * 100).toFixed(2));
+
+    logger.info('Score calculation:', {
+      correctCount,
+      totalQuestions,
+      score,
+      answers: Object.keys(answers).length
+    });
 
     // Update the exam to release results immediately after submission
     await FileRequest.findByIdAndUpdate(examId, {
@@ -226,7 +235,7 @@ const submitExam = asyncHandler(async (req, res) => {
     // Return immediate results to student
     res.json({
       message: 'Exam submitted successfully',
-      score,
+      score: score,
       correctAnswers: correctCount,
       totalQuestions,
       resultsAvailable: true
@@ -311,11 +320,9 @@ const releaseResults = asyncHandler(async (req, res) => {
 // Get my results (for student)
 const getMyResults = asyncHandler(async (req, res) => {
   try {
-    logger.info('Fetching results for student:', req.user._id);
-    
     const results = await ExamResponse.find({ 
       student: req.user._id,
-      status: 'completed' // Only get completed exams
+      status: 'completed'
     })
     .populate({
       path: 'exam',
@@ -325,15 +332,14 @@ const getMyResults = asyncHandler(async (req, res) => {
     .sort('-submittedAt')
     .lean();
 
-    // Format results but show scores immediately after submission
     const formattedResults = (results || []).map(result => ({
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
-        resultsReleased: true // Always show results after submission
+        resultsReleased: true
       },
-      score: result.score, // Always show score
-      correctAnswers: result.correctAnswers, // Always show correct answers
+      score: typeof result.score === 'number' ? Number(result.score.toFixed(2)) : 0,
+      correctAnswers: typeof result.correctAnswers === 'number' ? result.correctAnswers : 0,
       totalQuestions: result.totalQuestions,
       submittedAt: result.submittedAt,
       resultsAvailable: true
