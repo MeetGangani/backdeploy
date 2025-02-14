@@ -149,9 +149,14 @@ const registerUser = asyncHandler(async (req, res) => {
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
   try {
-    // Clear the JWT cookie with all necessary options
-    res.clearCookie('jwt');
-
+    // Clear the JWT cookie
+    res.cookie('jwt', '', {
+      httpOnly: true,
+      expires: new Date(0),
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/'
+    });
 
     // Clear session if it exists
     if (req.session) {
@@ -161,12 +166,6 @@ const logoutUser = asyncHandler(async (req, res) => {
           resolve();
         });
       });
-    }
-
-    // Invalidate the token in the database or cache if you're storing it
-    if (req.user) {
-      // You might want to add a blacklist or invalidation mechanism here
-      // await BlacklistedToken.create({ token: req.cookies.jwt });
     }
 
     res.status(200).json({ 
