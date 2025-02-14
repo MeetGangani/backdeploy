@@ -132,9 +132,8 @@ const submitExam = asyncHandler(async (req, res) => {
   const { examId, answers } = req.body;
 
   try {
-    logger.info(`Processing exam submission for exam: ${examId}`);
+    logger.info(`Processing exam submission:`, { examId, answers });
 
-    // Find the exam response
     const examResponse = await ExamResponse.findOne({
       exam: examId,
       student: req.user._id,
@@ -147,7 +146,6 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('No active exam session found');
     }
 
-    // Get exam details and decrypt questions
     const exam = await FileRequest.findById(examId);
     if (!exam) {
       logger.error('Exam not found');
@@ -163,33 +161,33 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('Invalid exam data structure');
     }
 
-    // Calculate score with detailed logging
     let correctCount = 0;
     const totalQuestions = decryptedData.questions.length;
 
     logger.info('Starting answer verification:', {
       submittedAnswers: answers,
-      totalQuestions
+      totalQuestions: totalQuestions
     });
 
-    // Compare answers with correct solutions
+    // Adjust the answer comparison to match 0-based indexing
     Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
       const question = decryptedData.questions[questionIndex];
-      const correctAnswer = question?.correctAnswer;
+      // Convert both to numbers for comparison
+      const submittedNum = Number(submittedAnswer);
+      const correctNum = Number(question.correctAnswer) - 1; // Adjust for 0-based indexing
 
       logger.info('Checking answer:', {
         questionIndex,
-        submittedAnswer: String(submittedAnswer),
-        correctAnswer: String(correctAnswer),
-        matches: String(submittedAnswer) === String(correctAnswer)
+        submittedAnswer: submittedNum,
+        correctAnswer: correctNum,
+        matches: submittedNum === correctNum
       });
 
-      if (correctAnswer !== undefined && String(submittedAnswer) === String(correctAnswer)) {
+      if (submittedNum === correctNum) {
         correctCount++;
       }
     });
 
-    // Calculate final score
     const score = Number(((correctCount / totalQuestions) * 100).toFixed(2));
 
     logger.info('Score calculation complete:', {
@@ -199,7 +197,7 @@ const submitExam = asyncHandler(async (req, res) => {
       answersSubmitted: Object.keys(answers).length
     });
 
-    // Update exam response with results
+    // Update exam response
     examResponse.answers = answers;
     examResponse.score = score;
     examResponse.correctAnswers = correctCount;
