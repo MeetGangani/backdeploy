@@ -52,7 +52,7 @@ export const examApprovalTemplate = ({ instituteName, examName, status, feedback
       <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
         <p style="color: #6b7280; font-size: 0.9em;">
           Best regards,<br>
-          Exam Portal Team
+          NexusEdu Team
         </p>
       </div>
     </div>
@@ -190,7 +190,7 @@ export const examResultTemplate = (resultData) => `
         </div>
 
         <div class="footer">
-          <p>© ${new Date().getFullYear()} KryptoExam. All rights reserved.</p>
+          <p>© ${new Date().getFullYear()} NexusEdu. All rights reserved.</p>
           <p>Secure Examination System</p>
         </div>
       </div>
