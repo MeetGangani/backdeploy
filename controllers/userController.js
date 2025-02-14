@@ -150,16 +150,7 @@ const registerUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   try {
     // Clear the JWT cookie with all necessary options
-    res.clearCookie('jwt', 'none', {
-      httpOnly: true,
-      expires: new Date(Date.now() + 5 * 1000),
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      path: '/',
-      domain: process.env.NODE_ENV === 'production' 
-        ? 'https://nexusedu-jade.vercel.app/'  // Replace with your actual domain
-        : 'localhost'
-    });
+    res.clearCookie('jwt');
 
 
     // Clear session if it exists
