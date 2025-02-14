@@ -12,7 +12,6 @@ const logger = createLogger('examController');
 // Get available exams for students
 const getAvailableExams = asyncHandler(async (req, res) => {
   try {
-    // Find all approved exams that the student hasn't attempted yet
     const attemptedExams = await ExamResponse.find({ 
       student: req.user._id 
     }).select('exam');
@@ -32,7 +31,7 @@ const getAvailableExams = asyncHandler(async (req, res) => {
   }
 });
 
-// Enhanced exam start with validation
+// Start exam with validation
 const startExam = asyncHandler(async (req, res) => {
   const { ipfsHash } = req.body;
 
@@ -49,7 +48,6 @@ const startExam = asyncHandler(async (req, res) => {
       throw new Error('Exam not found with the provided IPFS hash');
     }
 
-    // Check for any existing exam response
     const existingAttempt = await ExamResponse.findOne({
       exam: exam._id,
       student: req.user._id
@@ -65,7 +63,6 @@ const startExam = asyncHandler(async (req, res) => {
       }
     }
 
-    // Create new exam response only if one doesn't exist
     let examResponse = existingAttempt;
     if (!examResponse) {
       examResponse = await ExamResponse.create({
@@ -75,12 +72,12 @@ const startExam = asyncHandler(async (req, res) => {
         score: 0,
         correctAnswers: 0,
         totalQuestions: exam.totalQuestions,
-        status: 'in-progress'
+        status: 'in-progress',
+        resultsAvailable: false
       });
     }
 
     try {
-      logger.info('Fetching exam data from IPFS...');
       const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
       
       if (!response.data || !response.data.iv || !response.data.encryptedData) {
@@ -88,7 +85,6 @@ const startExam = asyncHandler(async (req, res) => {
         throw new Error('Invalid data format from IPFS');
       }
 
-      logger.info('Decrypting exam data...');
       const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
       
       if (!decryptedData || !decryptedData.questions) {
@@ -101,7 +97,6 @@ const startExam = asyncHandler(async (req, res) => {
         throw new Error('Invalid questions format');
       }
 
-      logger.info('Preparing exam data for student...');
       const sanitizedQuestions = decryptedData.questions.map(q => ({
         text: q.question,
         options: q.options
@@ -127,7 +122,7 @@ const startExam = asyncHandler(async (req, res) => {
   }
 });
 
-// Submit exam with enhanced validation and scoring
+// Submit exam with validation and scoring
 const submitExam = asyncHandler(async (req, res) => {
   const { examId, answers } = req.body;
 
@@ -153,7 +148,6 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('Exam not found');
     }
 
-    // Fetch and decrypt exam data
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
     const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
 
@@ -169,12 +163,10 @@ const submitExam = asyncHandler(async (req, res) => {
       totalQuestions: totalQuestions
     });
 
-    // Adjust the answer comparison to match 0-based indexing
     Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
       const question = decryptedData.questions[questionIndex];
-      // Convert both to numbers for comparison
       const submittedNum = Number(submittedAnswer);
-      const correctNum = Number(question.correctAnswer) - 1; // Adjust for 0-based indexing
+      const correctNum = Number(question.correctAnswer) - 1;
 
       logger.info('Checking answer:', {
         questionIndex,
@@ -190,45 +182,25 @@ const submitExam = asyncHandler(async (req, res) => {
 
     const score = Number(((correctCount / totalQuestions) * 100).toFixed(2));
 
-    logger.info('Score calculation complete:', {
-      correctCount,
-      totalQuestions,
-      score,
-      answersSubmitted: Object.keys(answers).length
-    });
-
-    // Update exam response
     examResponse.answers = answers;
     examResponse.score = score;
     examResponse.correctAnswers = correctCount;
     examResponse.totalQuestions = totalQuestions;
     examResponse.submittedAt = new Date();
     examResponse.status = 'completed';
-    examResponse.resultsAvailable = true;
+    examResponse.resultsAvailable = false;
 
     await examResponse.save();
 
-    // Update exam to release results
-    await FileRequest.findByIdAndUpdate(examId, {
-      resultsReleased: true
-    });
-
     res.json({
-      message: 'Exam submitted successfully',
-      score,
-      correctAnswers: correctCount,
+      message: 'Exam submitted successfully. Results will be available once released by the institute.',
       totalQuestions,
-      resultsAvailable: true
+      submittedAt: examResponse.submittedAt
     });
 
   } catch (error) {
-    logger.error('Submit exam error:', {
-      error: error.message,
-      stack: error.stack,
-      examId,
-      userId: req.user._id
-    });
-    res.status(error.status || 500);
+    logger.error('Submit exam error:', error);
+    res.status(500);
     throw new Error('Failed to submit exam');
   }
 });
@@ -254,13 +226,13 @@ const getMyResults = asyncHandler(async (req, res) => {
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
-        resultsReleased: true
+        resultsReleased: result.exam?.resultsReleased || false
       },
-      score: typeof result.score === 'number' ? Number(result.score.toFixed(2)) : 0,
-      correctAnswers: typeof result.correctAnswers === 'number' ? result.correctAnswers : 0,
+      score: result.exam?.resultsReleased ? Number(result.score.toFixed(2)) : null,
+      correctAnswers: result.exam?.resultsReleased ? result.correctAnswers : null,
       totalQuestions: result.totalQuestions,
       submittedAt: result.submittedAt,
-      resultsAvailable: true
+      resultsAvailable: result.exam?.resultsReleased || false
     }));
 
     logger.info('Formatted results:', formattedResults);
@@ -320,17 +292,20 @@ const releaseResults = asyncHandler(async (req, res) => {
     exam.resultsReleased = true;
     await exam.save();
 
-    // Get all responses with student details
+    await ExamResponse.updateMany(
+      { exam: examId },
+      { resultsAvailable: true }
+    );
+
     const responses = await ExamResponse.find({ exam: examId })
       .populate('student', 'email name')
       .lean();
 
-    // Process email notifications in batches
     const batchSize = 50;
     for (let i = 0; i < responses.length; i += batchSize) {
       const batch = responses.slice(i, i + batchSize);
       for (const response of batch) {
-        if (response.student && response.student.email) {
+        if (response.student?.email) {
           try {
             await sendEmail({
               to: response.student.email,
