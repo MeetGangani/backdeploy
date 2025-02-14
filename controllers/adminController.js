@@ -16,6 +16,7 @@ import {
 } from '../utils/encryptionUtils.js';
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
+import User from '../models/userModel.js';
 dotenv.config();
 
 // Get the current file's directory
@@ -287,8 +288,73 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
   }
 });
 
+// Get all users
+const getAllUsers = asyncHandler(async (req, res) => {
+  try {
+    const users = await User.find({})
+      .select('-password')
+      .sort('-createdAt')
+      .lean();
+
+    res.json(users);
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to fetch users: ' + error.message);
+  }
+});
+
+// Update user status
+const updateUserStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { isActive } = req.body;
+
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    user.isActive = isActive;
+    await user.save();
+
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      userType: user.userType,
+      isActive: user.isActive
+    });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to update user status: ' + error.message);
+  }
+});
+
+// Delete user
+const deleteUser = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    await User.deleteOne({ _id: id });
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to delete user: ' + error.message);
+  }
+});
+
 export {
   getRequests,
   updateRequestStatus,
-  getDashboardStats
+  getDashboardStats,
+  getAllUsers,
+  updateUserStatus,
+  deleteUser
 }; 

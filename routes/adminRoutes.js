@@ -3,7 +3,10 @@ import { protect, adminOnly } from '../middleware/authMiddleware.js';
 import { 
   getRequests, 
   updateRequestStatus, 
-  getDashboardStats 
+  getDashboardStats,
+  getAllUsers,
+  updateUserStatus,
+  deleteUser
 } from '../controllers/adminController.js';
 
 const router = express.Router();
@@ -19,5 +22,8 @@ router.options('*', (req, res) => {
 router.get('/requests', getRequests);
 router.get('/dashboard', getDashboardStats);
 router.put('/requests/:id', updateRequestStatus);
+router.get('/users', getAllUsers);
+router.put('/users/:id/status', updateUserStatus);
+router.delete('/users/:id', deleteUser);
 
 export default router; 
