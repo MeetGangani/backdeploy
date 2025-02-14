@@ -156,6 +156,7 @@ const logoutUser = asyncHandler(async (req, res) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
+    
     });
 
     // Clear session if it exists
