@@ -150,20 +150,14 @@ const startExam = asyncHandler(async (req, res) => {
 const submitExam = asyncHandler(async (req, res) => {
   const { examId, answers } = req.body;
 
-  logger.info('Received exam submission:', {
-    examId,
-    answersCount: Object.keys(answers).length,
-    userId: req.user._id
-  });
-
   try {
-    logger.info('Processing exam submission for exam:', examId);
+    logger.info('Processing exam submission:', { examId, answers });
 
-    // Find the existing exam response instead of creating a new one
+    // Find the existing exam response
     const examResponse = await ExamResponse.findOne({
       exam: examId,
       student: req.user._id,
-      status: 'in-progress' // Only find in-progress exams
+      status: 'in-progress'
     });
 
     if (!examResponse) {
@@ -180,7 +174,7 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('Exam not found');
     }
 
-    // Fetch and decrypt exam data from IPFS to get correct answers
+    // Fetch and decrypt exam data from IPFS
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
     const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
 
@@ -188,33 +182,42 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('Invalid exam data structure');
     }
 
-    // Calculate score
+    // Calculate score with detailed logging
     let correctCount = 0;
     const totalQuestions = decryptedData.questions.length;
 
-    Object.entries(answers).forEach(([questionIndex, answer]) => {
-      const correctAnswer = decryptedData.questions[questionIndex]?.correctAnswer;
-      if (correctAnswer !== undefined && correctAnswer === answer) {
+    logger.info('Starting answer verification:', {
+      submittedAnswers: answers,
+      totalQuestions
+    });
+
+    Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
+      const question = decryptedData.questions[questionIndex];
+      const correctAnswer = question?.correctAnswer;
+
+      logger.info('Checking answer:', {
+        questionIndex,
+        submittedAnswer,
+        correctAnswer,
+        matches: submittedAnswer === correctAnswer
+      });
+
+      if (correctAnswer !== undefined && submittedAnswer === correctAnswer) {
         correctCount++;
       }
     });
 
-    // Calculate score as a number, not a string
+    // Calculate score
     const score = Number(((correctCount / totalQuestions) * 100).toFixed(2));
 
-    logger.info('Score calculation:', {
+    logger.info('Score calculation complete:', {
       correctCount,
       totalQuestions,
       score,
-      answers: Object.keys(answers).length
+      answersSubmitted: Object.keys(answers).length
     });
 
-    // Update the exam to release results immediately after submission
-    await FileRequest.findByIdAndUpdate(examId, {
-      resultsReleased: true
-    });
-
-    // Update the existing exam response
+    // Update the exam response
     examResponse.answers = answers;
     examResponse.score = score;
     examResponse.correctAnswers = correctCount;
@@ -225,17 +228,10 @@ const submitExam = asyncHandler(async (req, res) => {
 
     await examResponse.save();
 
-    logger.info('Exam submitted successfully:', {
-      examId,
-      score,
-      correctAnswers: correctCount,
-      totalQuestions
-    });
-
-    // Return immediate results to student
+    // Return results
     res.json({
       message: 'Exam submitted successfully',
-      score: score,
+      score,
       correctAnswers: correctCount,
       totalQuestions,
       resultsAvailable: true
