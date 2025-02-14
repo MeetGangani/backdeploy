@@ -150,14 +150,14 @@ const registerUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   try {
     // Clear the JWT cookie with all necessary options
-    res.clearCookie('jwt', '', {
+    res.clearCookie('jwt', 'none', {
       httpOnly: true,
-      expires: new Date(0),
+      expires: new Date(Date.now() + 5 * 1000),
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/',
       domain: process.env.NODE_ENV === 'production' 
-        ? '.yourdomain.com'  // Replace with your actual domain
+        ? 'https://nexusedu-jade.vercel.app/'  // Replace with your actual domain
         : 'localhost'
     });
 
