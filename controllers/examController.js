@@ -1,73 +1,65 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import ExamResponse from '../models/examResponseModel.js';
-import { decryptFromIPFS } from '../utils/encryptionUtils.js';
-import sendEmail from '../utils/emailUtils.js';
-import { examResultTemplate } from '../utils/emailTemplates.js';
+import { decryptFromIPFS } from '../utils/encryption.js';
 import axios from 'axios';
-import { createLogger } from '../utils/logger.js';
+import logger from '../utils/logger.js';
 
-const logger = createLogger('examController');
-
-// Get available exams for students
+// Get available exams for student
 const getAvailableExams = asyncHandler(async (req, res) => {
   try {
-    // Find all approved exams that the student hasn't attempted yet
-    const attemptedExams = await ExamResponse.find({ 
-      student: req.user._id 
-    }).select('exam');
-
-    const attemptedExamIds = attemptedExams.map(response => response.exam);
-
-    const availableExams = await FileRequest.find({
+    const exams = await FileRequest.find({
       status: 'approved',
-      _id: { $nin: attemptedExamIds }
-    }).select('examName timeLimit totalQuestions ipfsHash').lean();
+      isActive: true
+    }).select('examName timeLimit totalQuestions');
 
-    res.json(availableExams);
+    res.json(exams);
   } catch (error) {
-    logger.error('Error fetching available exams:', error);
+    logger.error('Get available exams error:', error);
     res.status(500);
     throw new Error('Failed to fetch available exams');
   }
 });
 
-// Enhanced exam start with validation
+// Start exam for student
 const startExam = asyncHandler(async (req, res) => {
   const { ipfsHash } = req.body;
 
   try {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
 
-    const exam = await FileRequest.findOne({
-      ipfsHash: ipfsHash.trim()
-    });
-
+    // Find exam by IPFS hash
+    const exam = await FileRequest.findOne({ ipfsHash });
     if (!exam) {
-      logger.error(`No exam found with IPFS hash: ${ipfsHash}`);
+      logger.error('Exam not found for hash:', ipfsHash);
       res.status(404);
-      throw new Error('Exam not found with the provided IPFS hash');
+      throw new Error('Exam not found');
     }
 
-    // Check for any existing exam response
+    // Check if exam is active
+    if (!exam.isActive) {
+      logger.error('Exam is not active:', exam._id);
+      res.status(400);
+      throw new Error('This exam is not currently active');
+    }
+
+    // Check for existing attempt
     const existingAttempt = await ExamResponse.findOne({
+      student: req.user._id,
       exam: exam._id,
-      student: req.user._id
+      status: { $in: ['in-progress', 'completed'] }
     });
 
-    if (existingAttempt) {
-      if (existingAttempt.status === 'in-progress') {
-        // If there's an in-progress attempt, resume it
-        logger.info('Resuming existing exam attempt');
-      } else {
-        // If the exam was completed or timed out, don't allow another attempt
-        logger.error('Student has already completed this exam');
-        res.status(400);
-        throw new Error('You have already attempted this exam');
-      }
+    if (existingAttempt?.status === 'completed') {
+      logger.error('Student already completed this exam:', {
+        student: req.user._id,
+        exam: exam._id
+      });
+      res.status(400);
+      throw new Error('You have already completed this exam');
     }
 
-    // Create new exam response only if one doesn't exist
+    // Create new exam response if one doesn't exist
     let examResponse = existingAttempt;
     if (!examResponse) {
       examResponse = await ExamResponse.create({
@@ -83,7 +75,6 @@ const startExam = asyncHandler(async (req, res) => {
 
     try {
       logger.info('Fetching exam data from IPFS...');
-      // Fetch encrypted data from IPFS
       const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
       
       if (!response.data || !response.data.iv || !response.data.encryptedData) {
@@ -92,7 +83,6 @@ const startExam = asyncHandler(async (req, res) => {
       }
 
       logger.info('Decrypting exam data...');
-      // Decrypt the exam data using the stored IPFS encryption key
       const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
       
       if (!decryptedData || !decryptedData.questions) {
@@ -119,20 +109,13 @@ const startExam = asyncHandler(async (req, res) => {
         timeLimit: exam.timeLimit,
         totalQuestions: exam.totalQuestions,
         questions: sanitizedQuestions,
-        examResponseId: examResponse._id // Include the response ID for submission
+        examResponseId: examResponse._id
       });
 
     } catch (error) {
-      // If there's an error, clean up the exam response
+      // Clean up the exam response if there's an error
       await ExamResponse.findByIdAndDelete(examResponse._id);
-      
-      logger.error('Exam preparation error:', {
-        error: error.message,
-        stack: error.stack,
-        examId: exam._id
-      });
-      res.status(500);
-      throw new Error(`Failed to prepare exam content: ${error.message}`);
+      throw error;
     }
 
   } catch (error) {
@@ -146,7 +129,7 @@ const startExam = asyncHandler(async (req, res) => {
   }
 });
 
-// Enhanced exam submission with detailed validation
+// Submit exam
 const submitExam = asyncHandler(async (req, res) => {
   const { examId, answers } = req.body;
 
@@ -166,7 +149,7 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('No active exam session found');
     }
 
-    // Get the exam details to check answers
+    // Get the exam details
     const exam = await FileRequest.findById(examId);
     if (!exam) {
       logger.error('Exam not found');
@@ -191,18 +174,19 @@ const submitExam = asyncHandler(async (req, res) => {
       totalQuestions
     });
 
+    // Convert answers to strings for consistent comparison
     Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
       const question = decryptedData.questions[questionIndex];
       const correctAnswer = question?.correctAnswer;
 
       logger.info('Checking answer:', {
         questionIndex,
-        submittedAnswer,
-        correctAnswer,
-        matches: submittedAnswer === correctAnswer
+        submittedAnswer: String(submittedAnswer),
+        correctAnswer: String(correctAnswer),
+        matches: String(submittedAnswer) === String(correctAnswer)
       });
 
-      if (correctAnswer !== undefined && submittedAnswer === correctAnswer) {
+      if (correctAnswer !== undefined && String(submittedAnswer) === String(correctAnswer)) {
         correctCount++;
       }
     });
@@ -228,6 +212,11 @@ const submitExam = asyncHandler(async (req, res) => {
 
     await examResponse.save();
 
+    // Update exam to release results
+    await FileRequest.findByIdAndUpdate(examId, {
+      resultsReleased: true
+    });
+
     // Return results
     res.json({
       message: 'Exam submitted successfully',
@@ -249,73 +238,11 @@ const submitExam = asyncHandler(async (req, res) => {
   }
 });
 
-// Enhanced results release with batch processing
-const releaseResults = asyncHandler(async (req, res) => {
-  const { examId } = req.params;
-
-  try {
-    logger.info(`Releasing results for exam: ${examId}`);
-
-    const exam = await FileRequest.findOne({
-      _id: examId,
-      institute: req.user._id
-    });
-
-    if (!exam) {
-      res.status(404);
-      throw new Error('Exam not found');
-    }
-
-    exam.resultsReleased = true;
-    await exam.save();
-
-    // Get all responses with student details
-    const responses = await ExamResponse.find({ exam: examId })
-      .populate('student', 'email name')
-      .lean();
-
-    // Process email notifications in batches
-    const batchSize = 50;
-    for (let i = 0; i < responses.length; i += batchSize) {
-      const batch = responses.slice(i, i + batchSize);
-      for (const response of batch) {
-        if (response.student && response.student.email) {
-          try {
-            await sendEmail({
-              to: response.student.email,
-              subject: `Exam Results Available - ${exam.examName}`,
-              html: examResultTemplate({
-                examName: exam.examName,
-                score: response.score,
-                correctAnswers: response.correctAnswers,
-                totalQuestions: response.totalQuestions,
-                submittedAt: response.submittedAt,
-                dashboardUrl: `${process.env.FRONTEND_URL}/student/results/${response._id}`
-              })
-            });
-          } catch (emailError) {
-            logger.error('Email notification error:', emailError);
-          }
-        }
-      }
-    }
-
-    res.json({
-      message: 'Results released successfully',
-      examId: exam._id,
-      totalNotified: responses.length
-    });
-
-  } catch (error) {
-    logger.error('Release results error:', error);
-    res.status(500);
-    throw new Error('Failed to release results');
-  }
-});
-
 // Get my results (for student)
 const getMyResults = asyncHandler(async (req, res) => {
   try {
+    logger.info('Fetching results for student:', req.user._id);
+    
     const results = await ExamResponse.find({ 
       student: req.user._id,
       status: 'completed'
@@ -328,7 +255,7 @@ const getMyResults = asyncHandler(async (req, res) => {
     .sort('-submittedAt')
     .lean();
 
-    const formattedResults = (results || []).map(result => ({
+    const formattedResults = results.map(result => ({
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
@@ -382,7 +309,6 @@ export {
   getAvailableExams,
   startExam,
   submitExam,
-  releaseResults,
   getMyResults,
   getExamResults
-}; 
+};
