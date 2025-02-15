@@ -20,12 +20,11 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
-const admin = asyncHandler(async (req, res, next) => {
-  // Make sure we have user from protect middleware
+const adminOnly = asyncHandler(async (req, res, next) => {
   if (req.user && req.user.userType === 'admin') {
     next();
   } else {
-    console.log('User attempting admin access:', req.user); // Debug log
+    console.log('User attempting admin access:', req.user);
     res.status(403);
     throw new Error('Not authorized as an admin');
   }
@@ -49,4 +48,4 @@ const studentOnly = asyncHandler(async (req, res, next) => {
   }
 });
 
-export { protect, admin, instituteOnly, studentOnly };
+export { protect, adminOnly, instituteOnly, studentOnly };
