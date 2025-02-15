@@ -355,6 +355,12 @@ const createUser = asyncHandler(async (req, res) => {
   const { name, email, password, userType } = req.body;
 
   try {
+    // Validate password length
+    if (password.length < 6) {
+      res.status(400);
+      throw new Error('Password must be at least 6 characters long');
+    }
+
     const userExists = await User.findOne({ email });
 
     if (userExists) {
@@ -367,10 +373,10 @@ const createUser = asyncHandler(async (req, res) => {
       email,
       password,
       userType,
+      isActive: true // Set user as active by default
     });
 
     if (user) {
-      // Only send back success message, don't generate token
       res.status(201).json({
         message: 'User created successfully',
         user: {
@@ -378,6 +384,7 @@ const createUser = asyncHandler(async (req, res) => {
           name: user.name,
           email: user.email,
           userType: user.userType,
+          isActive: user.isActive
         }
       });
     } else {
@@ -386,7 +393,7 @@ const createUser = asyncHandler(async (req, res) => {
     }
   } catch (error) {
     res.status(500);
-    throw new Error('Failed to create user: ' + error.message);
+    throw new Error(error.message || 'Failed to create user');
   }
 });
 
