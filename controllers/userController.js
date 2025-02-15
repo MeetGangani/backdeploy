@@ -7,7 +7,7 @@ import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import { welcomeEmailTemplate, loginNotificationTemplate } from '../utils/emailTemplates.js';
 import sendEmail from '../utils/emailUtils.js';
-import UAParser from 'ua-parser-js';
+import * as UAParser from 'ua-parser-js';
 
 dotenv.config();
 
@@ -91,9 +91,9 @@ const googleCallback = async (req, res) => {
 
 // Helper function to get device info
 const getDeviceInfo = (userAgent) => {
-  const parser = new UAParser(userAgent);
+  const parser = new UAParser.UAParser(userAgent);
   const result = parser.getResult();
-  return `${result.browser.name} on ${result.os.name}`;
+  return `${result.browser.name || 'Unknown browser'} on ${result.os.name || 'Unknown OS'}`;
 };
 
 // @desc    Auth user & get token
