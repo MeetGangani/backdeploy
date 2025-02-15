@@ -368,29 +368,31 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error('User already exists');
     }
 
-    const user = await User.create({
+    // Create user without generating token
+    const user = new User({
       name,
       email,
       password,
       userType,
-      isActive: true // Set user as active by default
+      isActive: true
     });
 
-    if (user) {
-      res.status(201).json({
-        message: 'User created successfully',
-        user: {
-          _id: user._id,
-          name: user.name,
-          email: user.email,
-          userType: user.userType,
-          isActive: user.isActive
-        }
-      });
-    } else {
-      res.status(400);
-      throw new Error('Invalid user data');
-    }
+    // Save user manually to avoid any middleware hooks
+    await user.save();
+
+    // Send response without generating any token
+    res.status(201).json({
+      success: true,
+      message: 'User created successfully',
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+        isActive: user.isActive
+      }
+    });
+
   } catch (error) {
     res.status(500);
     throw new Error(error.message || 'Failed to create user');

@@ -12,17 +12,17 @@ import {
 
 const router = express.Router();
 
-// Updated to use adminOnly instead of admin
+// Protect all admin routes
 router.use(protect);
 router.use(adminOnly);
 
 // Admin routes
-router.route('/requests').get(getRequests);
-router.route('/requests/:id').put(updateRequestStatus);
-router.route('/dashboard').get(getDashboardStats);
-router.route('/users').get(getAllUsers);
-router.route('/users/:id/status').put(updateUserStatus);
-router.route('/users/:id').delete(deleteUser);
-router.route('/users').post(createUser);
+router.post('/users/create', createUser); // Specific endpoint for user creation
+router.get('/users', getAllUsers);
+router.put('/users/:id/status', updateUserStatus);
+router.delete('/users/:id', deleteUser);
+router.get('/requests', getRequests);
+router.put('/requests/:id', updateRequestStatus);
+router.get('/dashboard', getDashboardStats);
 
 export default router; 
