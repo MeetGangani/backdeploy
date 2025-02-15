@@ -355,7 +355,6 @@ const createUser = asyncHandler(async (req, res) => {
   const { name, email, password, userType } = req.body;
 
   try {
-    // Validate password length
     if (password.length < 6) {
       res.status(400);
       throw new Error('Password must be at least 6 characters long');
@@ -368,33 +367,33 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error('User already exists');
     }
 
-    // Create user without generating token
+    // Create user document
     const user = new User({
       name,
       email,
-      password,
+      password, // Will be hashed by pre-save middleware
       userType,
-      isActive: true
+      isActive: true,
     });
 
-    // Save user manually to avoid any middleware hooks
-    await user.save();
+    // Save without generating token
+    const savedUser = await user.save();
 
-    // Send response without generating any token
+    // Return success without token
     res.status(201).json({
       success: true,
       message: 'User created successfully',
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        userType: user.userType,
-        isActive: user.isActive
+        _id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        userType: savedUser.userType,
+        isActive: savedUser.isActive
       }
     });
 
   } catch (error) {
-    res.status(500);
+    res.status(error.status || 500);
     throw new Error(error.message || 'Failed to create user');
   }
 });

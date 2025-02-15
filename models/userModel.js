@@ -25,10 +25,7 @@ const userSchema = mongoose.Schema(
     userType: {
       type: String,
       required: true,
-      enum: {
-        values: ['student', 'admin', 'institute'],
-        message: '{VALUE} is not a valid user type'
-      },
+      enum: ['student', 'admin', 'institute'],
       default: 'student'
     },
     lastLogin: {
@@ -45,20 +42,23 @@ const userSchema = mongoose.Schema(
   }
 );
 
+// Only hash password if it's modified (or new)
+userSchema.pre('save', async function (next) {
+  // Skip middleware if password wasn't modified
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  // Only hash password, don't generate token
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
 // Match user entered password to hashed password in database
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
-
-// Encrypt password using bcrypt
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
-    next();
-  }
-
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-});
 
 const User = mongoose.model('User', userSchema);
 
