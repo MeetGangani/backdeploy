@@ -130,7 +130,10 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (user) {
-    generateToken(res, user._id);
+    // Only generate token if it's a regular registration (not admin creating user)
+    if (!req.user || req.user.userType !== 'admin') {
+      generateToken(res, user._id);
+    }
 
     res.status(201).json({
       _id: user._id,

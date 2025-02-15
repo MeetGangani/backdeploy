@@ -350,11 +350,52 @@ const deleteUser = asyncHandler(async (req, res) => {
   }
 });
 
+// Add this new endpoint for admin user creation
+const createUser = asyncHandler(async (req, res) => {
+  const { name, email, password, userType } = req.body;
+
+  try {
+    const userExists = await User.findOne({ email });
+
+    if (userExists) {
+      res.status(400);
+      throw new Error('User already exists');
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      userType,
+    });
+
+    if (user) {
+      // Only send back success message, don't generate token
+      res.status(201).json({
+        message: 'User created successfully',
+        user: {
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          userType: user.userType,
+        }
+      });
+    } else {
+      res.status(400);
+      throw new Error('Invalid user data');
+    }
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to create user: ' + error.message);
+  }
+});
+
 export {
   getRequests,
   updateRequestStatus,
   getDashboardStats,
   getAllUsers,
   updateUserStatus,
-  deleteUser
+  deleteUser,
+  createUser
 }; 
