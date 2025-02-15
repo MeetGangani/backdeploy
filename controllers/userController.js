@@ -5,6 +5,9 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
+import { welcomeEmailTemplate, loginNotificationTemplate } from '../utils/emailTemplates.js';
+import sendEmail from '../utils/emailUtils.js';
+import UAParser from 'ua-parser-js';
 
 dotenv.config();
 
@@ -86,26 +89,59 @@ const googleCallback = async (req, res) => {
   }
 };
 
+// Helper function to get device info
+const getDeviceInfo = (userAgent) => {
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+  return `${result.browser.name} on ${result.os.name}`;
+};
+
 // @desc    Auth user & get token
 // @route   POST /api/users/auth
 // @access  Public
 const authUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
+  try {
+    const user = await User.findOne({ email });
 
-  if (user && (await user.matchPassword(password))) {
-    generateToken(res, user._id);
+    if (user && (await user.matchPassword(password))) {
+      // Get device and location info
+      const device = getDeviceInfo(req.headers['user-agent']);
+      const time = new Date().toLocaleString();
+      const location = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-    res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      userType: user.userType,
-    });
-  } else {
-    res.status(401);
-    throw new Error('Invalid email or password');
+      // Send login notification
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'New Login to Your NexusEdu Account',
+          html: loginNotificationTemplate({
+            name: user.name,
+            time,
+            location,
+            device
+          })
+        });
+      } catch (emailError) {
+        console.error('Login notification email error:', emailError);
+      }
+
+      generateToken(res, user._id);
+
+      res.json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+      });
+    } else {
+      res.status(401);
+      throw new Error('Invalid email or password');
+    }
+  } catch (error) {
+    res.status(500);
+    throw new Error(error.message || 'Login failed');
   }
 });
 
@@ -115,35 +151,54 @@ const authUser = asyncHandler(async (req, res) => {
 const registerUser = asyncHandler(async (req, res) => {
   const { name, email, password, userType } = req.body;
 
-  const userExists = await User.findOne({ email });
+  try {
+    const userExists = await User.findOne({ email });
 
-  if (userExists) {
-    res.status(400);
-    throw new Error('User already exists');
-  }
-
-  const user = await User.create({
-    name,
-    email,
-    password,
-    userType,
-  });
-
-  if (user) {
-    // Only generate token if it's a regular registration (not admin creating user)
-    if (!req.user || req.user.userType !== 'admin') {
-      generateToken(res, user._id);
+    if (userExists) {
+      res.status(400);
+      throw new Error('User already exists');
     }
 
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      userType: user.userType,
+    const user = await User.create({
+      name,
+      email,
+      password,
+      userType,
     });
-  } else {
-    res.status(400);
-    throw new Error('Invalid user data');
+
+    if (user) {
+      // Send welcome email
+      try {
+        await sendEmail({
+          to: email,
+          subject: 'Welcome to NexusEdu!',
+          html: welcomeEmailTemplate({
+            name,
+            userType
+          })
+        });
+      } catch (emailError) {
+        console.error('Welcome email error:', emailError);
+      }
+
+      // Only generate token if it's a regular registration
+      if (!req.user || req.user.userType !== 'admin') {
+        generateToken(res, user._id);
+      }
+
+      res.status(201).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        userType: user.userType,
+      });
+    } else {
+      res.status(400);
+      throw new Error('Invalid user data');
+    }
+  } catch (error) {
+    res.status(500);
+    throw new Error(error.message || 'Failed to create user');
   }
 });
 

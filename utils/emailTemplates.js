@@ -197,4 +197,69 @@ export const examResultTemplate = (resultData) => `
     </div>
   </body>
 </html>
+`;
+
+export const welcomeEmailTemplate = ({ name, userType }) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #1f2937;">Welcome to NexusEdu!</h2>
+    <p>Dear ${name},</p>
+    
+    <div style="margin: 20px 0; padding: 15px; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px;">
+      <h3 style="color: #047857; margin-top: 0;">Account Created Successfully</h3>
+      <p>Your account has been created as a <strong>${userType}</strong>.</p>
+    </div>
+
+    <p>You can now:</p>
+    <ul style="margin: 15px 0;">
+      ${userType === 'student' ? `
+        <li>Access and take exams</li>
+        <li>View your results</li>
+        <li>Track your progress</li>
+      ` : userType === 'institute' ? `
+        <li>Create and manage exams</li>
+        <li>Monitor student performance</li>
+        <li>Access detailed analytics</li>
+      ` : `
+        <li>Manage users and permissions</li>
+        <li>Monitor system activity</li>
+        <li>Access administrative features</li>
+      `}
+    </ul>
+
+    <p style="margin-top: 20px;">
+      If you have any questions, our support team is here to help!
+    </p>
+    
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <p style="color: #6b7280; font-size: 0.9em;">
+        Best regards,<br>
+        NexusEdu Team
+      </p>
+    </div>
+  </div>
+`;
+
+export const loginNotificationTemplate = ({ name, time, location, device }) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #1f2937;">New Login Detected</h2>
+    <p>Dear ${name},</p>
+    
+    <div style="margin: 20px 0; padding: 15px; background-color: #f3f4f6; border-radius: 8px;">
+      <h3 style="color: #1f2937; margin-top: 0;">Login Details</h3>
+      <p><strong>Time:</strong> ${time}</p>
+      <p><strong>Location:</strong> ${location}</p>
+      <p><strong>Device:</strong> ${device}</p>
+    </div>
+
+    <p style="color: #6b7280;">
+      If this wasn't you, please contact our support team immediately.
+    </p>
+    
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <p style="color: #6b7280; font-size: 0.9em;">
+        Stay secure,<br>
+        NexusEdu Team
+      </p>
+    </div>
+  </div>
 `; 
