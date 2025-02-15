@@ -1,29 +1,28 @@
 import express from 'express';
-import { protect, adminOnly } from '../middleware/authMiddleware.js';
-import { 
-  getRequests, 
-  updateRequestStatus, 
+import { protect, admin } from '../middleware/authMiddleware.js';
+import {
+  getRequests,
+  updateRequestStatus,
   getDashboardStats,
   getAllUsers,
   updateUserStatus,
-  deleteUser
+  deleteUser,
+  createUser
 } from '../controllers/adminController.js';
 
 const router = express.Router();
 
-// Apply admin middleware to all routes
-router.use(protect, adminOnly);
+// Apply protect middleware first, then admin middleware
+router.use(protect);
+router.use(admin);
 
-// Add explicit OPTIONS handling for preflight requests
-router.options('*', (req, res) => {
-  res.sendStatus(200);
-});
-
-router.get('/requests', getRequests);
-router.get('/dashboard', getDashboardStats);
-router.put('/requests/:id', updateRequestStatus);
-router.get('/users', getAllUsers);
-router.put('/users/:id/status', updateUserStatus);
-router.delete('/users/:id', deleteUser);
+// Admin routes
+router.route('/requests').get(getRequests);
+router.route('/requests/:id').put(updateRequestStatus);
+router.route('/dashboard').get(getDashboardStats);
+router.route('/users').get(getAllUsers);
+router.route('/users/:id/status').put(updateUserStatus);
+router.route('/users/:id').delete(deleteUser);
+router.route('/users').post(createUser);
 
 export default router; 

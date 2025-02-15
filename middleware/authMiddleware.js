@@ -3,7 +3,7 @@ import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
 
 const protect = asyncHandler(async (req, res, next) => {
-  const token = req.cookies.jwt;
+  let token = req.cookies.jwt;
 
   if (token) {
     try {
@@ -11,7 +11,6 @@ const protect = asyncHandler(async (req, res, next) => {
       req.user = await User.findById(decoded.userId).select('-password');
       next();
     } catch (error) {
-      console.error('Token verification failed:', error);
       res.status(401);
       throw new Error('Not authorized, token failed');
     }
@@ -21,10 +20,12 @@ const protect = asyncHandler(async (req, res, next) => {
   }
 });
 
-const adminOnly = asyncHandler(async (req, res, next) => {
+const admin = asyncHandler(async (req, res, next) => {
+  // Make sure we have user from protect middleware
   if (req.user && req.user.userType === 'admin') {
     next();
   } else {
+    console.log('User attempting admin access:', req.user); // Debug log
     res.status(403);
     throw new Error('Not authorized as an admin');
   }
@@ -48,4 +49,4 @@ const studentOnly = asyncHandler(async (req, res, next) => {
   }
 });
 
-export { protect, adminOnly, instituteOnly, studentOnly };
+export { protect, admin, instituteOnly, studentOnly };
