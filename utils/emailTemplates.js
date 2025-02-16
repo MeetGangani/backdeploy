@@ -306,7 +306,7 @@ export const instituteGuidelinesTemplate = ({ name }) => `
           <li>Each question must have exactly 4 options</li>
           <li>The "question" field contains the question text</li>
           <li>"options" should be an array of exactly 4 strings</li>
-          <li>"correctAnswer" should be the index (0-3) of the correct option</li>
+          <li>"correctAnswer" should be the index (1-4) of the correct option</li>
           <li>Maximum 100 questions per exam</li>
           <li>All fields are required for each question</li>
         </ul>
