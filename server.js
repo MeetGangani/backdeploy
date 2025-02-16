@@ -46,7 +46,7 @@ const corsOptions = {
   origin: [
     'https://nexusedu-jade.vercel.app',
     'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-    process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null
+     'http://localhost:3000'
   ].filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
