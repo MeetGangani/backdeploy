@@ -345,4 +345,19 @@ export const instituteGuidelinesTemplate = ({ name }) => `
       </p>
     </div>
   </div>
+`;
+
+export const newUserCredentialsTemplate = ({ name, email, password, userType }) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <h2>Welcome to NexusEdu!</h2>
+    <p>Hello ${name},</p>
+    <p>An administrator has created a new ${userType} account for you on NexusEdu.</p>
+    <p>Here are your login credentials:</p>
+    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+      <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+      <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+    </div>
+    <p>Please login and change your password immediately for security purposes.</p>
+    <p>Best regards,<br>NexusEdu Team</p>
+  </div>
 `; 

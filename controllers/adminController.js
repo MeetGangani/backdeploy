@@ -17,6 +17,8 @@ import {
 import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import User from '../models/userModel.js';
+import { generateStrongPassword } from '../utils/passwordUtils.js';
+import { newUserCredentialsTemplate } from '../utils/emailTemplates.js';
 dotenv.config();
 
 // Get the current file's directory
@@ -352,15 +354,9 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 // Add this new endpoint for admin user creation
 const createUser = asyncHandler(async (req, res) => {
-  const { name, email, password, userType } = req.body;
+  const { name, email, userType } = req.body;
 
   try {
-    // Validate password length
-    if (password.length < 6) {
-      res.status(400);
-      throw new Error('Password must be at least 6 characters long');
-    }
-
     const userExists = await User.findOne({ email });
 
     if (userExists) {
@@ -368,22 +364,41 @@ const createUser = asyncHandler(async (req, res) => {
       throw new Error('User already exists');
     }
 
-    // Create user without generating token
+    // Generate a strong password
+    const generatedPassword = generateStrongPassword();
+
+    // Create user with generated password
     const user = new User({
       name,
       email,
-      password,
+      password: generatedPassword, // This will be hashed by the User model
       userType,
       isActive: true
     });
 
-    // Save user manually to avoid any middleware hooks
+    // Save user
     await user.save();
 
-    // Send response without generating any token
+    // Send credentials email
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'Your NexusEdu Account Credentials',
+        html: newUserCredentialsTemplate({
+          name,
+          email,
+          password: generatedPassword,
+          userType
+        })
+      });
+    } catch (emailError) {
+      console.error('Failed to send credentials email:', emailError);
+      // Continue with the response even if email fails
+    }
+
     res.status(201).json({
       success: true,
-      message: 'User created successfully',
+      message: 'User created successfully and credentials sent via email',
       user: {
         _id: user._id,
         name: user.name,
