@@ -24,132 +24,138 @@ import MongoStore from 'connect-mongo';
 const logger = createLogger('server');
 dotenv.config();
 
-// Connect to MongoDB
-connectDB();
-
 const app = express();
 
-// Security middleware
-app.use(helmet());
-app.use(mongoSanitize());
+// Connect to MongoDB before starting the server
+const startServer = async () => {
+  try {
+    await connectDB();
+    
+    // Security middleware
+    app.use(helmet());
+    app.use(mongoSanitize());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later'
-});
-app.use('/api/', limiter);
+    // Rate limiting
+    const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // Limit each IP to 100 requests per windowMs
+      message: 'Too many requests from this IP, please try again later'
+    });
+    app.use('/api/', limiter);
 
-// CORS configuration for Vercel frontend
-const corsOptions = {
-  origin: [
-    'https://nexusedu-jade.vercel.app',
-    'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-     'http://localhost:3000'
-  ].filter(Boolean),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+    // CORS configuration for Vercel frontend
+    const corsOptions = {
+      origin: [
+        'https://nexusedu-jade.vercel.app',
+        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
+         'http://localhost:3000'
+      ].filter(Boolean),
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+    };
+
+    // Apply middleware
+    app.use(cors(corsOptions));
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
+
+    // Trust proxy for secure cookies
+    if (process.env.NODE_ENV === 'production') {
+      app.set('trust proxy', 1);
+    }
+
+    app.use(cookieParser());
+
+    // Session configuration with MongoDB store
+    app.use(session({
+      secret: process.env.SESSION_SECRET,
+      resave: false,
+      saveUninitialized: false,
+      store: MongoStore.create({
+        mongoUrl: process.env.MONGO_URI,
+        collectionName: 'sessions',
+        ttl: 24 * 60 * 60 // Session TTL (1 day)
+      }),
+      cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: true,
+        path: '/'
+      }
+    }));
+
+    // Passport middleware
+    app.use(passport.initialize());
+    app.use(passport.session());
+
+    // Passport configuration
+    passport.serializeUser((user, done) => {
+      done(null, user.id);
+    });
+
+    passport.deserializeUser(async (id, done) => {
+      try {
+        const user = await User.findById(id);
+        done(null, user);
+      } catch (err) {
+        done(err, null);
+      }
+    });
+
+    // Request logging in development
+    if (process.env.NODE_ENV !== 'production') {
+      app.use((req, res, next) => {
+        logger.debug(`${req.method} ${req.originalUrl}`);
+        next();
+      });
+    }
+
+    // API routes
+    app.use('/api/users', userRoutes);
+    app.use('/api/files', fileRoutes);
+    app.use('/api/upload', fileUploadRoutes);
+    app.use('/api/admin', adminRoutes);
+    app.use('/api/exams', examRoutes);
+    app.use('/api/contact', contactRoutes);
+
+    // Basic route for API health check
+    app.get('/', (req, res) => {
+      res.json({ message: 'API is running' });
+    });
+
+    // Error handling middleware
+    app.use((err, req, res, next) => {
+      console.error(err.stack);
+      res.status(err.status || 500).json({
+        message: err.message || 'Internal Server Error',
+        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+      });
+    });
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 };
 
-// Apply middleware
-app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+startServer();
 
-// Trust proxy for secure cookies
-if (process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
-}
-
-app.use(cookieParser());
-
-// Session configuration with MongoDB store
-app.use(session({
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  store: MongoStore.create({
-    mongoUrl: process.env.MONGO_URI,
-    collectionName: 'sessions',
-    ttl: 24 * 60 * 60 // Session TTL (1 day)
-  }),
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    httpOnly: true,
-    path: '/'
-  }
-}));
-
-// Passport middleware
-app.use(passport.initialize());
-app.use(passport.session());
-
-// Passport configuration
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (err) {
-    done(err, null);
-  }
-});
-
-// Request logging in development
-if (process.env.NODE_ENV !== 'production') {
-  app.use((req, res, next) => {
-    logger.debug(`${req.method} ${req.originalUrl}`);
-    next();
-  });
-}
-
-// API routes
-app.use('/api/users', userRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/upload', fileUploadRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/exams', examRoutes);
-app.use('/api/contact', contactRoutes);
-
-// Basic route for API health check
-app.get('/', (req, res) => {
-  res.json({ message: 'API is running' });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    message: err.message || 'Internal Server Error',
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-  });
-});
-
-// Start server
-const port = process.env.PORT || 5000;
-const server = app.listen(port, () => {
-  logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${port}`);
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Promise Rejection:', err);
-  // Close server & exit process
-  server.close(() => process.exit(1));
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+  console.error('Unhandled Rejection:', err);
+  process.exit(1);
 });
 
 export default app;
