@@ -5,7 +5,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
-import { welcomeEmailTemplate, loginNotificationTemplate } from '../utils/emailTemplates.js';
+import { welcomeEmailTemplate, loginNotificationTemplate, instituteGuidelinesTemplate } from '../utils/emailTemplates.js';
 import sendEmail from '../utils/emailUtils.js';
 import * as UAParser from 'ua-parser-js';
 
@@ -167,18 +167,40 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 
     if (user) {
-      // Send welcome email
+      // Send appropriate welcome email based on user type
       try {
-        await sendEmail({
-          to: email,
-          subject: 'Welcome to NexusEdu!',
-          html: welcomeEmailTemplate({
-            name,
-            userType
-          })
-        });
+        if (userType === 'institute') {
+          // Send both welcome and guidelines emails for institutes
+          await Promise.all([
+            sendEmail({
+              to: email,
+              subject: 'Welcome to NexusEdu!',
+              html: welcomeEmailTemplate({
+                name,
+                userType
+              })
+            }),
+            sendEmail({
+              to: email,
+              subject: 'NexusEdu - Question Paper Guidelines',
+              html: instituteGuidelinesTemplate({
+                name
+              })
+            })
+          ]);
+        } else {
+          // Send only welcome email for other user types
+          await sendEmail({
+            to: email,
+            subject: 'Welcome to NexusEdu!',
+            html: welcomeEmailTemplate({
+              name,
+              userType
+            })
+          });
+        }
       } catch (emailError) {
-        console.error('Welcome email error:', emailError);
+        console.error('Email sending error:', emailError);
       }
 
       // Only generate token if it's a regular registration

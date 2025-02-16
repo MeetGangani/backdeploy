@@ -262,4 +262,87 @@ export const loginNotificationTemplate = ({ name, time, location, device }) => `
       </p>
     </div>
   </div>
+`;
+
+export const instituteGuidelinesTemplate = ({ name }) => `
+  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #1f2937;">Welcome to NexusEdu - Question Paper Guidelines</h2>
+    <p>Dear ${name},</p>
+    
+    <div style="margin: 20px 0; padding: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <h3 style="color: #1f2937; margin-top: 0;">Question Paper Format Requirements</h3>
+      
+      <div style="margin-top: 15px;">
+        <h4 style="color: #4338ca;">File Format</h4>
+        <ul style="color: #475569;">
+          <li>Accept JSON format only</li>
+          <li>Maximum file size: 10MB</li>
+        </ul>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <h4 style="color: #4338ca;">JSON Structure</h4>
+        <pre style="background-color: #f1f5f9; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 13px;">
+{
+  "questions": [
+    {
+      "question": "What is the capital of France?",
+      "options": ["London", "Paris", "Berlin", "Madrid"],
+      "correctAnswer": 2
+    },
+    {
+      "question": "Which planet is known as the Red Planet?",
+      "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+      "correctAnswer": 2
+    }
+    // ... more questions
+  ]
+}</pre>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <h4 style="color: #4338ca;">Important Notes</h4>
+        <ul style="color: #475569;">
+          <li>Each question must have exactly 4 options</li>
+          <li>The "question" field contains the question text</li>
+          <li>"options" should be an array of exactly 4 strings</li>
+          <li>"correctAnswer" should be the index (0-3) of the correct option</li>
+          <li>Maximum 100 questions per exam</li>
+          <li>All fields are required for each question</li>
+        </ul>
+      </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background-color: #fff7ed; border: 1px solid #f97316; border-radius: 8px;">
+      <h4 style="color: #c2410c; margin-top: 0;">⚠️ Important</h4>
+      <ul style="color: #475569;">
+        <li>Ensure all questions have unique content</li>
+        <li>Double-check correctAnswer indices (0-3)</li>
+        <li>Verify all options are properly formatted</li>
+        <li>Make sure the JSON is properly formatted and valid</li>
+      </ul>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px;">
+      <h4 style="color: #047857; margin-top: 0;">Next Steps</h4>
+      <ol style="color: #475569;">
+        <li>Prepare your question paper according to the format above</li>
+        <li>Login to your institute dashboard</li>
+        <li>Click on "Create New Exam"</li>
+        <li>Upload your JSON file</li>
+        <li>Wait for admin approval</li>
+      </ol>
+    </div>
+
+    <p style="margin-top: 20px;">
+      If you have any questions about the format or need assistance, please contact our support team.
+    </p>
+    
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+      <p style="color: #6b7280; font-size: 0.9em;">
+        Best regards,<br>
+        NexusEdu Team
+      </p>
+    </div>
+  </div>
 `; 
