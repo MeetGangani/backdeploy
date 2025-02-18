@@ -364,25 +364,19 @@ export const newUserCredentialsTemplate = ({ name, email, password, userType }) 
 
 export const newInstituteCredentialsTemplate = ({ name, email, password, userType }) => {
   const examFormatExample = {
-    examName: "Example Exam",
-    description: "Brief description of the exam",
-    questions: [
+    "questions": [
       {
-        questionText: "What is 2 + 2?",
-        options: ["3", "4", "5", "6"],
-        correctAnswer: 2, // Index 2 means second option (4 is correct)
-        marks: 1
+        "question": "What is the capital of France?",
+        "options": ["London", "Paris", "Berlin", "Madrid"],
+        "correctAnswer": 2
       },
       {
-        questionText: "Which is the largest planet?",
-        options: ["Mars", "Venus", "Jupiter", "Saturn"],
-        correctAnswer: 3, // Index 3 means third option (Jupiter is correct)
-        marks: 1
+        "question": "Which planet is known as the Red Planet?",
+        "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+        "correctAnswer": 2
       }
-    ],
-    timeLimit: 60, // in minutes
-    totalMarks: 2,
-    passingPercentage: 40
+      // ... more questions
+    ]
   };
 
   return `
