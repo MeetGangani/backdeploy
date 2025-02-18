@@ -18,7 +18,7 @@ import { examApprovalTemplate } from '../utils/emailTemplates.js';
 import { createLogger } from '../utils/logger.js';
 import User from '../models/userModel.js';
 import { generateStrongPassword } from '../utils/passwordUtils.js';
-import { newUserCredentialsTemplate } from '../utils/emailTemplates.js';
+import { newUserCredentialsTemplate, newInstituteCredentialsTemplate } from '../utils/emailTemplates.js';
 dotenv.config();
 
 // Get the current file's directory
@@ -371,7 +371,7 @@ const createUser = asyncHandler(async (req, res) => {
     const user = new User({
       name,
       email,
-      password: generatedPassword, // This will be hashed by the User model
+      password: generatedPassword,
       userType,
       isActive: true
     });
@@ -379,21 +379,27 @@ const createUser = asyncHandler(async (req, res) => {
     // Save user
     await user.save();
 
-    // Send credentials email
+    // Send credentials email with appropriate template
     try {
       await sendEmail({
         to: email,
         subject: 'Your NexusEdu Account Credentials',
-        html: newUserCredentialsTemplate({
-          name,
-          email,
-          password: generatedPassword,
-          userType
-        })
+        html: userType === 'institute' 
+          ? newInstituteCredentialsTemplate({
+              name,
+              email,
+              password: generatedPassword,
+              userType
+            })
+          : newUserCredentialsTemplate({
+              name,
+              email,
+              password: generatedPassword,
+              userType
+            })
       });
     } catch (emailError) {
       console.error('Failed to send credentials email:', emailError);
-      // Continue with the response even if email fails
     }
 
     res.status(201).json({

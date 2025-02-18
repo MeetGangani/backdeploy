@@ -360,4 +360,83 @@ export const newUserCredentialsTemplate = ({ name, email, password, userType }) 
     <p>Please login and change your password immediately for security purposes.</p>
     <p>Best regards,<br>NexusEdu Team</p>
   </div>
-`; 
+`;
+
+export const newInstituteCredentialsTemplate = ({ name, email, password, userType }) => {
+  const examFormatExample = {
+    examName: "Example Exam",
+    description: "Brief description of the exam",
+    questions: [
+      {
+        questionText: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        correctAnswer: 2, // Index 2 means second option (4 is correct)
+        marks: 1
+      },
+      {
+        questionText: "Which is the largest planet?",
+        options: ["Mars", "Venus", "Jupiter", "Saturn"],
+        correctAnswer: 3, // Index 3 means third option (Jupiter is correct)
+        marks: 1
+      }
+    ],
+    timeLimit: 60, // in minutes
+    totalMarks: 2,
+    passingPercentage: 40
+  };
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #1f2937;">Welcome to NexusEdu!</h2>
+      <p>Dear ${name},</p>
+      
+      <div style="margin: 20px 0; padding: 15px; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px;">
+        <h3 style="color: #047857; margin-top: 0;">Your Account Credentials</h3>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Password:</strong> ${password}</p>
+        <p><strong>Account Type:</strong> ${userType}</p>
+      </div>
+
+      <div style="margin: 20px 0;">
+        <h3 style="color: #1f2937;">Exam Paper Format</h3>
+        <p>Please use the following JSON format for creating exam papers:</p>
+        <pre style="background-color: #f3f4f6; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; color: #374151;">
+${JSON.stringify(examFormatExample, null, 2)}
+        </pre>
+      </div>
+
+      <div style="margin: 20px 0; padding: 15px; background-color: #fff7ed; border: 1px solid #f97316; border-radius: 8px;">
+        <h4 style="color: #c2410c; margin-top: 0;">Important Notes:</h4>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #666;">
+          <li>Questions must be clear and unambiguous</li>
+          <li>Each question must have exactly 4 options</li>
+          <li>correctAnswer should be 1-4 (1 for first option, 4 for last option)</li>
+          <li>Time limit should be in minutes</li>
+          <li>Total marks should match sum of individual question marks</li>
+          <li>Passing percentage should be between 1-100</li>
+        </ul>
+      </div>
+
+      <div style="margin: 20px 0; padding: 15px; background-color: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px;">
+        <h4 style="color: #1f2937; margin-top: 0;">Example Explanation:</h4>
+        <p style="color: #666;">In the example above:</p>
+        <ul style="margin: 10px 0; padding-left: 20px; color: #666;">
+          <li>For the first question, correctAnswer: 2 means "4" is the correct answer</li>
+          <li>For the second question, correctAnswer: 3 means "Jupiter" is the correct answer</li>
+        </ul>
+      </div>
+
+      <p style="margin-top: 20px;">
+        Please change your password after first login for security purposes.
+        For any assistance, please contact our support team.
+      </p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+        <p style="color: #6b7280; font-size: 0.9em;">
+          Best regards,<br>
+          NexusEdu Team
+        </p>
+      </div>
+    </div>
+  `;
+}; 
