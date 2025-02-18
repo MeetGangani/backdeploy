@@ -3,9 +3,14 @@ import nodemailer from 'nodemailer';
 
 // @desc    Send contact form message
 // @route   POST /api/contact
-// @access  Public
+// @access  Public (Changed from Protected)
 const sendContactMessage = asyncHandler(async (req, res) => {
   const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !subject || !message) {
+    res.status(400);
+    throw new Error('Please fill all fields');
+  }
 
   // Create a transporter using your email service
   const transporter = nodemailer.createTransport({
@@ -15,7 +20,7 @@ const sendContactMessage = asyncHandler(async (req, res) => {
       pass: process.env.EMAIL_PASS
     },
     tls: {
-      rejectUnauthorized: false // Add this for production
+      rejectUnauthorized: false
     }
   });
 
@@ -220,12 +225,11 @@ const sendContactMessage = asyncHandler(async (req, res) => {
   // Email options
   const mailOptions = {
     from: email,
-    to: 'kryptoexam@gmail.com', // Your email where you want to receive messages
+    to: process.env.EMAIL_USER, // Use environment variable
     subject: `✨ New Contact: ${subject}`,
     html: htmlTemplate,
-    // Add a plain text version for email clients that don't support HTML
     text: `
-      New Message from KryptoExam Contact Form
+      New Message from NexusEdu Contact Form
 
       From: ${name} (${email})
       Subject: ${subject}
@@ -237,7 +241,7 @@ const sendContactMessage = asyncHandler(async (req, res) => {
         timeZone: 'Asia/Kolkata'
       })}
 
-      KryptoExam - Secure Examination System
+      NexusEdu - Secure Examination System
     `
   };
 
