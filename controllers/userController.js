@@ -106,25 +106,28 @@ const authUser = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-      // Get device and location info
-      const device = getDeviceInfo(req.headers['user-agent']);
-      const time = new Date().toLocaleString();
-      const location = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+      // Send login notification only for institute and admin users
+      if (user.userType === 'institute' || user.userType === 'admin') {
+        // Get device and location info
+        const device = getDeviceInfo(req.headers['user-agent']);
+        const time = new Date().toLocaleString();
+        const location = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
 
-      // Send login notification
-      try {
-        await sendEmail({
-          to: email,
-          subject: 'New Login to Your NexusEdu Account',
-          html: loginNotificationTemplate({
-            name: user.name,
-            time,
-            location,
-            device
-          })
-        });
-      } catch (emailError) {
-        console.error('Login notification email error:', emailError);
+        // Send login notification
+        try {
+          await sendEmail({
+            to: email,
+            subject: 'New Login to Your NexusEdu Account',
+            html: loginNotificationTemplate({
+              name: user.name,
+              time,
+              location,
+              device
+            })
+          });
+        } catch (emailError) {
+          console.error('Login notification email error:', emailError);
+        }
       }
 
       generateToken(res, user._id);
