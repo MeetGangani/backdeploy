@@ -16,6 +16,7 @@ const examResponseSchema = new mongoose.Schema({
     of: Number,
     required: true
   },
+  
   score: {
     type: Number,
     required: true
