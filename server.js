@@ -13,7 +13,6 @@ import contactRoutes from './routes/contactRoutes.js';
 import passport from 'passport';
 import session from 'express-session';
 import User from './models/userModel.js';
-import corsMiddleware from './middleware/corsMiddleware.js';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import mongoSanitize from 'express-mongo-sanitize';
@@ -26,48 +25,41 @@ dotenv.config();
 
 const app = express();
 
-// Connect to MongoDB before starting the server
 const startServer = async () => {
   try {
     await connectDB();
     
-    // Security middleware
     app.use(helmet());
     app.use(mongoSanitize());
 
-    // Rate limiting
     const limiter = rateLimit({
-      windowMs: 15 * 60 * 1000, // 15 minutes
-      max: 100, // Limit each IP to 100 requests per windowMs
+      windowMs: 15 * 60 * 1000,
+      max: 100,
       message: 'Too many requests from this IP, please try again later'
     });
     app.use('/api/', limiter);
 
-    // CORS configuration for Vercel frontend
     const corsOptions = {
       origin: [
         'https://nexusedu-jade.vercel.app',
         'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-         'http://localhost:3000'
-      ].filter(Boolean),
+        'http://localhost:3000'
+      ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
     };
-
-    // Apply middleware
+    
     app.use(cors(corsOptions));
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
-    // Trust proxy for secure cookies
     if (process.env.NODE_ENV === 'production') {
       app.set('trust proxy', 1);
     }
 
     app.use(cookieParser());
 
-    // Session configuration with MongoDB store
     app.use(session({
       secret: process.env.SESSION_SECRET,
       resave: false,
@@ -75,26 +67,21 @@ const startServer = async () => {
       store: MongoStore.create({
         mongoUrl: process.env.MONGO_URI,
         collectionName: 'sessions',
-        ttl: 24 * 60 * 60 // Session TTL (1 day)
+        ttl: 24 * 60 * 60
       }),
       cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        secure: true, // Required for cross-origin cookies
+        sameSite: 'None', // Allows cross-origin requests
+        maxAge: 24 * 60 * 60 * 1000,
         httpOnly: true,
         path: '/'
       }
     }));
 
-    // Passport middleware
     app.use(passport.initialize());
     app.use(passport.session());
 
-    // Passport configuration
-    passport.serializeUser((user, done) => {
-      done(null, user.id);
-    });
-
+    passport.serializeUser((user, done) => done(null, user.id));
     passport.deserializeUser(async (id, done) => {
       try {
         const user = await User.findById(id);
@@ -104,7 +91,6 @@ const startServer = async () => {
       }
     });
 
-    // Request logging in development
     if (process.env.NODE_ENV !== 'production') {
       app.use((req, res, next) => {
         logger.debug(`${req.method} ${req.originalUrl}`);
@@ -112,7 +98,6 @@ const startServer = async () => {
       });
     }
 
-    // API routes
     app.use('/api/users', userRoutes);
     app.use('/api/files', fileRoutes);
     app.use('/api/upload', fileUploadRoutes);
@@ -120,19 +105,9 @@ const startServer = async () => {
     app.use('/api/exams', examRoutes);
     app.use('/api/contact', contactRoutes);
 
-    // Basic route for API health check
-    app.get('/', (req, res) => {
-      res.json({ message: 'API is running' });
-    });
+    app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
-    // Error handling middleware
-    app.use((err, req, res, next) => {
-      console.error(err.stack);
-      res.status(err.status || 500).json({
-        message: err.message || 'Internal Server Error',
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-      });
-    });
+    app.use(errorHandler);
 
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => {
@@ -146,13 +121,11 @@ const startServer = async () => {
 
 startServer();
 
-// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err);
   process.exit(1);
