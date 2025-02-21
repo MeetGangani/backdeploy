@@ -341,7 +341,7 @@ const releaseResults = asyncHandler(async (req, res) => {
 });
 
 export {
-  getAvailableExams,
+  
   startExam,
   submitExam,
   releaseResults,
