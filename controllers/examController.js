@@ -31,9 +31,23 @@ const getAvailableExams = asyncHandler(async (req, res) => {
   }
 });
 
+// Check if exam mode is enabled
+const checkExamMode = asyncHandler(async (req, res) => {
+  const { ipfsHash } = req.params;
+
+  const exam = await FileRequest.findOne({ ipfsHash });
+
+  if (!exam) {
+    res.status(404);
+    throw new Error('Exam not found');
+  }
+
+  res.json({ examMode: exam.examMode });
+});
+
 // Start exam with validation
 const startExam = asyncHandler(async (req, res) => {
-  const { ipfsHash, duration } = req.body;
+  const { ipfsHash } = req.body;
 
   try {
     logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
@@ -46,6 +60,12 @@ const startExam = asyncHandler(async (req, res) => {
       logger.error(`No exam found with IPFS hash: ${ipfsHash}`);
       res.status(404);
       throw new Error('Exam not found with the provided IPFS hash');
+    }
+
+    if (!exam.examMode) {
+      logger.error('Exam mode is not enabled');
+      res.status(400);
+      throw new Error('Exam mode is not enabled');
     }
 
     const existingAttempt = await ExamResponse.findOne({
@@ -74,7 +94,7 @@ const startExam = asyncHandler(async (req, res) => {
         totalQuestions: exam.totalQuestions,
         status: 'in-progress',
         resultsAvailable: false,
-        timeLimit: duration
+        timeLimit: exam.timeLimit
       });
     }
 
@@ -103,13 +123,16 @@ const startExam = asyncHandler(async (req, res) => {
         options: q.options
       }));
 
+      const examData = await ExamResponse.find({ exam: exam._id }).populate('student', 'name email');
+
       res.json({
         _id: exam._id,
         examName: exam.examName,
         timeLimit: exam.timeLimit,
         totalQuestions: exam.totalQuestions,
         questions: sanitizedQuestions,
-        examResponseId: examResponse._id
+        examResponseId: examResponse._id,
+        examData
       });
 
     } catch (error) {
@@ -342,6 +365,7 @@ const releaseResults = asyncHandler(async (req, res) => {
 
 export {
   getAvailableExams,
+  checkExamMode,
   startExam,
   submitExam,
   releaseResults,

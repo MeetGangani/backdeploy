@@ -5,7 +5,8 @@ import {
   submitExam,
   releaseResults,
   getMyResults,
-  getExamResults
+  getExamResults,
+  checkExamMode
 } from '../controllers/examController.js';
 import { protect } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
@@ -25,5 +26,11 @@ router.get('/results/:examId', protect, getExamResults);
 router.post('/release/:examId', protect, releaseResults);
 
 router.route('/:id/exam-mode').put(protect, updateExamMode);
+
+// Route to check exam mode
+router.get('/exams/:ipfsHash', checkExamMode);
+
+// Route to start the exam
+router.post('/exams/start', startExam);
 
 export default router; 
