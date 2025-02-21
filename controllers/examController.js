@@ -34,6 +34,7 @@ const getAvailableExams = asyncHandler(async (req, res) => {
 // Check if exam mode is enabled
 const checkExamMode = asyncHandler(async (req, res) => {
   const { ipfsHash } = req.params;
+  logger.info(`Checking exam mode for IPFS hash: ${ipfsHash}`);
 
   const exam = await FileRequest.findOne({ ipfsHash });
 
