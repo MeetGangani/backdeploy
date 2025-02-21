@@ -203,11 +203,35 @@ const getUploadDetails = asyncHandler(async (req, res) => {
   res.json(request);
 });
 
+// @desc    Update exam mode for a file request
+// @route   PUT /api/exams/:id/exam-mode
+// @access  Institute Only
+const updateExamMode = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { examMode } = req.body; // Expecting a boolean value
+
+  const fileRequest = await FileRequest.findById(id);
+  
+  if (!fileRequest) {
+    res.status(404);
+    throw new Error('Request not found');
+  }
+
+  fileRequest.examMode = examMode;
+  await fileRequest.save();
+
+  res.json({
+    message: `Exam mode ${examMode ? 'enabled' : 'disabled'} successfully`,
+    examMode: fileRequest.examMode
+  });
+});
+
 export { 
   uploadFile, 
   getPendingRequests, 
   getRequestDetails,
   updateRequestStatus,
   getMyUploads,
-  getUploadDetails
+  getUploadDetails,
+  updateExamMode
 }; 

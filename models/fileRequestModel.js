@@ -73,6 +73,10 @@ const fileRequestSchema = new mongoose.Schema({
   ipfsEncryptionKey: {
     type: String,
     default: null
+  },
+  examMode: {
+    type: Boolean,
+    default: false // Default to disabled
   }
 }, {
   timestamps: true
