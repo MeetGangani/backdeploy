@@ -10,26 +10,26 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('examController');
 
 // Get available exams for students
-// const getAvailableExams = asyncHandler(async (req, res) => {
-//   try {
-//     const attemptedExams = await ExamResponse.find({ 
-//       student: req.user._id 
-//     }).select('exam');
+const getAvailableExams = asyncHandler(async (req, res) => {
+  try {
+    const attemptedExams = await ExamResponse.find({ 
+      student: req.user._id 
+    }).select('exam');
 
-//     const attemptedExamIds = attemptedExams.map(response => response.exam);
+    const attemptedExamIds = attemptedExams.map(response => response.exam);
 
-//     const availableExams = await FileRequest.find({
-//       status: 'approved',
-//       _id: { $nin: attemptedExamIds }
-//     }).select('examName timeLimit totalQuestions ipfsHash').lean();
+    const availableExams = await FileRequest.find({
+      status: 'approved',
+      _id: { $nin: attemptedExamIds }
+    }).select('examName timeLimit totalQuestions ipfsHash').lean();
 
-//     res.json(availableExams);
-//   } catch (error) {
-//     logger.error('Error fetching available exams:', error);
-//     res.status(500);
-//     throw new Error('Failed to fetch available exams');
-//   }
-// });
+    res.json(availableExams);
+  } catch (error) {
+    logger.error('Error fetching available exams:', error);
+    res.status(500);
+    throw new Error('Failed to fetch available exams');
+  }
+});
 
 // Start exam with validation
 const startExam = asyncHandler(async (req, res) => {
@@ -341,7 +341,7 @@ const releaseResults = asyncHandler(async (req, res) => {
 });
 
 export {
-  
+  getAvailableExams,
   startExam,
   submitExam,
   releaseResults,
