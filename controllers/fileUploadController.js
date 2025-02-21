@@ -51,7 +51,7 @@ const validateQuestionFormat = (questions) => {
 const uploadFile = asyncHandler(async (req, res) => {
   try {
     // 1. Validate request
-    if (!req.file || !req.body.examName || !req.body.description) {
+    if (!req.file || !req.body.examName || !req.body.description || !req.body.examDuration) {
       res.status(400);
       throw new Error('Please provide all required fields');
     }
@@ -80,7 +80,7 @@ const uploadFile = asyncHandler(async (req, res) => {
       encryptionKey: encryptionKey,
       totalQuestions: jsonContent.questions.length,
       status: 'pending',
-      timeLimit: 60 // Default time limit
+      timeLimit: req.body.examDuration, // Save the provided exam duration
     });
 
     // 5. Send success response
@@ -88,7 +88,7 @@ const uploadFile = asyncHandler(async (req, res) => {
       message: 'File uploaded successfully',
       requestId: fileRequest._id,
       examName: fileRequest.examName,
-      totalQuestions: fileRequest.totalQuestions
+      totalQuestions: fileRequest.totalQuestions,
     });
 
   } catch (error) {
