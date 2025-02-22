@@ -36,14 +36,18 @@ const checkExamMode = asyncHandler(async (req, res) => {
   const { ipfsHash } = req.params;
   logger.info(`Checking exam mode for IPFS hash: ${ipfsHash}`);
 
-  const exam = await FileRequest.findOne({ ipfsHash });
+  const exam = await FileRequest.findOne({ ipfsHash: ipfsHash.trim() });
 
   if (!exam) {
     res.status(404);
     throw new Error('Exam not found');
   }
 
-  res.json({ examMode: exam.examMode });
+  // Return both examMode status and a message
+  res.json({
+    examMode: exam.examMode,
+    message: exam.examMode ? 'Exam is active' : 'Exam has not been started yet'
+  });
 });
 
 // Start exam with validation
@@ -63,10 +67,11 @@ const startExam = asyncHandler(async (req, res) => {
       throw new Error('Exam not found with the provided IPFS hash');
     }
 
+    // Check exam mode before proceeding
     if (!exam.examMode) {
-      logger.error('Exam mode is not enabled');
+      logger.error('Attempt to start exam when exam mode is disabled');
       res.status(400);
-      throw new Error('Exam mode is not enabled');
+      throw new Error('This exam has not been started by the institute yet');
     }
 
     const existingAttempt = await ExamResponse.findOne({

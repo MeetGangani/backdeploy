@@ -28,7 +28,8 @@ router.post('/release/:examId', protect, releaseResults);
 router.route('/:id/exam-mode').put(protect, updateExamMode);
 
 // Route to check exam mode
-router.get('/exams/:ipfsHash', checkExamMode);
+// router.get('/exams/:ipfsHash', checkExamMode);
+router.get('/check-mode/:ipfsHash', checkExamMode);
 
 // Route to start the exam
 router.post('/exams/start', startExam);
