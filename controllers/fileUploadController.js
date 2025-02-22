@@ -167,7 +167,7 @@ const getMyUploads = asyncHandler(async (req, res) => {
     const uploads = await FileRequest.find({ 
       institute: req.user._id 
     })
-    .select('examName description status createdAt totalQuestions resultsReleased')
+    .select('examName description status createdAt totalQuestions resultsReleased examMode ipfsHash')
     .sort('-createdAt');
 
     if (!uploads || uploads.length === 0) {
