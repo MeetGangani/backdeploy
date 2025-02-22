@@ -246,7 +246,7 @@ const getMyResults = asyncHandler(async (req, res) => {
     })
     .populate({
       path: 'exam',
-      select: 'examName resultsReleased'
+      select: 'examName ipfsHash resultsReleased'
     })
     .select('score correctAnswers totalQuestions submittedAt resultsAvailable')
     .sort('-submittedAt')
@@ -256,6 +256,7 @@ const getMyResults = asyncHandler(async (req, res) => {
       _id: result._id,
       exam: {
         examName: result.exam?.examName || 'N/A',
+        ipfsHash: result.exam?.ipfsHash || 'N/A',
         resultsReleased: result.exam?.resultsReleased || false
       },
       score: result.exam?.resultsReleased ? Number(result.score.toFixed(2)) : null,
