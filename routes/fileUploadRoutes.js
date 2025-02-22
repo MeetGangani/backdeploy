@@ -14,7 +14,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 // Institute routes
 router.post('/', protect, instituteOnly, upload.single('file'), uploadFile);
-router.get('/my-uploads', protect, instituteOnly, getMyUploads);
+router.get('/my-uploads', protect, getMyUploads);
 router.get('/requests/:id', protect, instituteOnly, getUploadDetails);
 
 export default router; 

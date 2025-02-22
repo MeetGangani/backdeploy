@@ -170,7 +170,7 @@ const getMyUploads = asyncHandler(async (req, res) => {
     .select('examName description status createdAt totalQuestions resultsReleased')
     .sort('-createdAt');
 
-    if (!uploads) {
+    if (!uploads || uploads.length === 0) {
       return res.status(404).json({
         message: 'No uploads found'
       });
