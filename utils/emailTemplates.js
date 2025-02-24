@@ -78,6 +78,19 @@ export const examApprovalTemplate = ({ instituteName, examName, status, feedback
   `;
 };
 
+// Helper function for IST time formatting
+const formatIndianTime = (date) => {
+  return new Date(date).toLocaleString('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
 /**
  * Generates HTML email template for exam results
  * @param {Object} resultData - The result data
@@ -116,7 +129,7 @@ export const examResultTemplate = ({ resultData }) => `
     </div>
 
     <div style="margin-bottom: 30px; text-align: center; color: #64748B;">
-      <p>Exam completed on: ${resultData.submittedAt}</p>
+      <p>Exam completed on (IST): ${formatIndianTime(resultData.submittedAt)}</p>
     </div>
 
     <a href="${resultData.dashboardUrl}" 
@@ -203,6 +216,13 @@ export const welcomeEmailTemplate = ({ name, userType }) => `
         </p>
       </div>
     </div>
+
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+      <p style="color: #64748B; margin: 0; font-size: 14px;">
+        Account created on: ${formatIndianTime(new Date())}<br>
+        © ${new Date().getFullYear()} NexusEdu
+      </p>
+    </div>
   </div>
 `;
 
@@ -224,7 +244,7 @@ export const loginNotificationTemplate = ({ name, time, location, device }) => `
         <h3 style="color: #0F766E; margin: 0 0 15px; font-size: 18px;">Login Details</h3>
         
         <div style="margin-bottom: 15px;">
-          <p style="margin: 0; color: #334155; font-weight: 600;">Time</p>
+          <p style="margin: 0; color: #334155; font-weight: 600;">Time (IST)</p>
           <p style="margin: 5px 0 0; color: #475569;">${time}</p>
         </div>
 
@@ -325,6 +345,7 @@ export const instituteGuidelinesTemplate = ({ name }) => `
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #E2E8F0;">
       <p style="color: #64748B; margin: 0; font-size: 14px;">
+        Generated on: ${formatIndianTime(new Date())}<br>
         Need assistance? Contact our support team at<br>
         <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
       </p>
@@ -337,7 +358,7 @@ export const newUserCredentialsTemplate = ({ name, email, password, userType }) 
     <h2>Welcome to NexusEdu!</h2>
     <p>Hello ${name},</p>
     <p>An administrator has created a new ${userType} account for you on NexusEdu.</p>
-    <p>Here are your login credentials:</p>
+    <p>Account created on: ${formatIndianTime(new Date())}</p>
     <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
       <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
       <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>

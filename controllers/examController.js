@@ -346,6 +346,7 @@ const releaseResults = asyncHandler(async (req, res) => {
         try {
           // Format the submission date
           const submittedAt = new Date(response.submittedAt).toLocaleString('en-US', {
+            timeZone: 'Asia/Kolkata',
             year: 'numeric',
             month: 'long',
             day: 'numeric',
