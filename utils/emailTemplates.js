@@ -326,7 +326,8 @@ export const loginNotificationTemplate = ({ name, time, location, device }) => `
         <div style="margin-bottom: 15px;">
           <p style="margin: 0; color: #334155; font-weight: 600;">Location</p>
           <p style="margin: 5px 0 0; color: #475569;">
-            ${location.city}, ${location.region}<br>
+            ${location.city !== 'Unknown City' ? `${location.city}, ` : ''}
+            ${location.state !== 'Unknown State' ? `${location.state}, ` : ''}
             ${location.country}<br>
             <span style="color: #64748B; font-size: 14px;">IP: ${location.ip}</span>
           </p>

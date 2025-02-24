@@ -97,12 +97,12 @@ const getDeviceInfo = (userAgent) => {
   return `${result.browser.name || 'Unknown browser'} on ${result.os.name || 'Unknown OS'}`;
 };
 
-// Modified getLocationInfo function with fallback and rate limit handling
+// Modified getLocationInfo function to include city and state
 const getLocationInfo = async (ip) => {
   try {
     // First attempt with ipapi.co
     const response = await axios.get(`https://ipapi.co/${ip}/json/`, {
-      timeout: 3000, // 3 second timeout
+      timeout: 3000,
       headers: {
         'User-Agent': 'NexusEdu/1.0'
       }
@@ -113,15 +113,26 @@ const getLocationInfo = async (ip) => {
       throw new Error('Rate limited');
     }
 
-    return {
+    // Extract all location data
+    const locationData = {
+      city: response.data.city || 'Unknown City',
+      state: response.data.region || 'Unknown State',
       country: response.data.country_name || 'Unknown Country',
       ip: ip
     };
+
+    // Log the response for debugging
+    console.log('Location API Response:', response.data);
+    console.log('Parsed Location Data:', locationData);
+
+    return locationData;
   } catch (error) {
-    // Log error but don't let it break the flow
-    console.log('Location lookup fallback: Using default values');
+    console.log('Location lookup error:', error.message);
     
+    // Fallback with default values
     return {
+      city: 'Unknown City',
+      state: 'Unknown State',
       country: 'Location Unavailable',
       ip: ip
     };
@@ -138,15 +149,20 @@ const authUser = asyncHandler(async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-      // Send login notification only for institute and admin users
       if (user.userType === 'institute' || user.userType === 'admin') {
         try {
           const device = getDeviceInfo(req.headers['user-agent']);
-          const time = new Date().toLocaleString();
-          const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+          const time = new Date().toLocaleString('en-US', { 
+            timeZone: 'Asia/Kolkata',
+            dateStyle: 'long',
+            timeStyle: 'medium'
+          });
+          
+          // Get IP address
+          const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || 
                     req.connection.remoteAddress;
           
-          // Get location info with fallback
+          // Get location info
           const locationInfo = await getLocationInfo(ip);
 
           await sendEmail({
@@ -160,7 +176,6 @@ const authUser = asyncHandler(async (req, res) => {
             })
           });
         } catch (notificationError) {
-          // Log error but don't block login
           console.error('Login notification error:', notificationError);
         }
       }
