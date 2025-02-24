@@ -42,8 +42,9 @@ const startServer = async () => {
     const corsOptions = {
       origin: [
         'https://nexusedu-jade.vercel.app',
-        'http://localhost:3000',  // Keep this for local development
-        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
+        'http://localhost:3000',
+        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
+        'https://nexusedu-jade.vercel.app'
       ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
