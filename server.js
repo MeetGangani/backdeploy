@@ -42,12 +42,13 @@ const startServer = async () => {
     const corsOptions = {
       origin: [
         'https://nexusedu-jade.vercel.app',
-        '*',
-        'http://localhost:3000'
+        'http://localhost:3000',  // Keep this for local development
+        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
       ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization']
+      allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+      exposedHeaders: ['Set-Cookie']
     };
     
     app.use(cors(corsOptions));
