@@ -211,7 +211,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
         logger.info('Saving file request with IPFS details');
         await fileRequest.save();
 
-        // Send approval email
+        // Send approval email without encryption key
         try {
           await sendEmail({
             to: fileRequest.institute.email,
@@ -221,8 +221,7 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
               examName: fileRequest.examName,
               status: 'approved',
               feedback: adminComment,
-              ipfsHash: ipfsHash,
-              encryptionKey: encryptionKey
+              ipfsHash: ipfsHash
             })
           });
           logger.info('Approval email sent successfully');

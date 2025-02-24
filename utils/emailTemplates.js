@@ -10,57 +10,67 @@
  * @param {('approved'|'rejected')} status - Status of the exam request
  * @returns {string} HTML email template
  */
-export const examApprovalTemplate = ({ instituteName, examName, status, feedback, ipfsHash, encryptionKey }) => {
+export const examApprovalTemplate = ({ instituteName, examName, status, feedback, ipfsHash }) => {
   const statusColor = status === 'approved' ? '#0F766E' : '#991B1B';
   const statusText = status.toUpperCase();
 
   return `
-    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 8px;">
-      <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Exam Request Update</h1>
-        <p style="color: #64748B; margin-top: 8px;">Status: <span style="color: ${statusColor};">${statusText}</span></p>
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <div style="text-align: center; margin-bottom: 35px;">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
+          ${status === 'approved' 
+            ? `<circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
+               <path d="M27.5 34.5L31 38L37 32" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+            : `<circle cx="32" cy="32" r="32" fill="#991B1B" fill-opacity="0.1"/>
+               <path d="M32 28V36M32 40H32.01" stroke="#991B1B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`
+          }
+        </svg>
+        <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Exam Review Complete</h1>
+        <p style="color: ${statusColor}; font-weight: 600; margin-top: 8px; font-size: 16px;">${statusText}</p>
       </div>
 
       <div style="color: #334155; line-height: 1.6;">
-        <p>Dear ${instituteName},</p>
-        <p>Your exam request for <strong>${examName}</strong> has been processed.</p>
+        <p style="font-size: 16px;">Dear ${instituteName},</p>
+        <p style="font-size: 16px;">Your exam request for <strong>${examName}</strong> has been reviewed and ${status}.</p>
         
         ${feedback ? `
-          <div style="margin: 20px 0; padding: 20px; background-color: #F8FAFC; border-left: 4px solid #64748B; border-radius: 4px;">
-            <p style="margin: 0; color: #334155;"><strong>Admin Feedback:</strong></p>
+          <div style="margin: 25px 0; padding: 20px; background-color: #F8FAFC; border-left: 4px solid ${statusColor}; border-radius: 4px;">
+            <p style="margin: 0; color: #334155; font-weight: 600;">Reviewer Feedback:</p>
             <p style="margin: 10px 0 0; color: #475569;">${feedback}</p>
           </div>
         ` : ''}
 
         ${status === 'approved' ? `
-          <div style="margin: 20px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #0F766E; border-radius: 4px;">
-            <h3 style="color: #0F766E; margin: 0 0 15px;">Exam Access Credentials</h3>
-            <div style="background: #FFFFFF; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
-              <p style="margin: 0; color: #334155;"><strong>IPFS Hash:</strong></p>
-              <p style="margin: 5px 0 0; color: #475569; word-break: break-all;">${ipfsHash}</p>
+          <div style="margin: 25px 0; padding: 25px; background-color: #F0FDF4; border: 1px solid #0F766E; border-radius: 8px;">
+            <h3 style="color: #0F766E; margin: 0 0 15px; font-size: 18px;">Exam Access Details</h3>
+            <div style="background: #FFFFFF; padding: 20px; border-radius: 6px; margin-bottom: 15px;">
+              <p style="margin: 0; color: #334155; font-weight: 600;">IPFS Hash</p>
+              <p style="margin: 8px 0 0; color: #475569; word-break: break-all; font-family: monospace; font-size: 14px;">${ipfsHash}</p>
             </div>
-            <div style="background: #FFFFFF; padding: 15px; border-radius: 4px;">
-              <p style="margin: 0; color: #334155;"><strong>Encryption Key:</strong></p>
-              <p style="margin: 5px 0 0; color: #475569; word-break: break-all;">${encryptionKey}</p>
-            </div>
-            <p style="color: #0F766E; font-size: 14px; margin: 15px 0 0;">
-              ⚠️ Please store these credentials securely. They are required for exam access.
+            <p style="color: #0F766E; font-size: 14px; margin: 15px 0 0; display: flex; align-items: center;">
+              <span style="margin-right: 8px;">⚠️</span>
+              The encryption key will be provided through a secure channel.
             </p>
           </div>
         ` : `
-          <div style="margin: 20px 0; padding: 20px; background-color: #FEF2F2; border: 1px solid #991B1B; border-radius: 4px;">
-            <p style="color: #991B1B; margin: 0;">
-              Please review the feedback and submit a new request after making the necessary adjustments.
+          <div style="margin: 25px 0; padding: 20px; background-color: #FEF2F2; border: 1px solid #991B1B; border-radius: 8px;">
+            <p style="color: #991B1B; margin: 0; font-size: 15px;">
+              Please review the feedback above and submit a new request after making the necessary adjustments.
             </p>
           </div>
         `}
 
-        <p>If you need any assistance, our support team is available to help.</p>
+        <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #E2E8F0;">
+          <p style="color: #64748B; margin: 0; font-size: 15px;">
+            Need assistance? Our support team is here to help.<br>
+            Contact us at <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
+          </p>
+        </div>
 
-        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
-          <p style="color: #64748B; margin: 0;">
+        <div style="margin-top: 30px; text-align: center;">
+          <p style="color: #64748B; margin: 0; font-size: 14px;">
             Best regards,<br>
-            <strong style="color: #334155;">NexusEdu Team</strong>
+            <strong style="color: #334155; font-size: 16px;">NexusEdu Team</strong>
           </p>
         </div>
       </div>
@@ -292,41 +302,52 @@ export const welcomeEmailTemplate = ({ name, userType }) => `
 `;
 
 export const loginNotificationTemplate = ({ name, time, location, device }) => `
-  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #ffffff; border: 1px solid #E5E7EB; border-radius: 8px;">
-    <div style="text-align: center; margin-bottom: 30px;">
-      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Security Alert</h1>
-      <p style="color: #64748B; margin-top: 8px;">New Login Detected</p>
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 35px;">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
+        <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
+        <path d="M32 20V32L40 36" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">New Login Detected</h1>
     </div>
 
     <div style="color: #334155; line-height: 1.6;">
-      <p>Dear ${name},</p>
-      
-      <div style="margin: 20px 0; padding: 20px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 4px;">
-        <h3 style="color: #1E293B; margin: 0 0 15px;">Login Details</h3>
-        <div style="margin-bottom: 10px;">
-          <strong style="color: #1E293B;">Time:</strong>
-          <span style="color: #475569;">${time}</span>
+      <p style="font-size: 16px;">Dear ${name},</p>
+      <p style="font-size: 16px;">We detected a new login to your NexusEdu account.</p>
+
+      <div style="margin: 25px 0; padding: 25px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+        <h3 style="color: #0F766E; margin: 0 0 15px; font-size: 18px;">Login Details</h3>
+        
+        <div style="margin-bottom: 15px;">
+          <p style="margin: 0; color: #334155; font-weight: 600;">Time</p>
+          <p style="margin: 5px 0 0; color: #475569;">${time}</p>
         </div>
-        <div style="margin-bottom: 10px;">
-          <strong style="color: #1E293B;">Location:</strong>
-          <span style="color: #475569;">${location}</span>
+
+        <div style="margin-bottom: 15px;">
+          <p style="margin: 0; color: #334155; font-weight: 600;">Location</p>
+          <p style="margin: 5px 0 0; color: #475569;">
+            ${location.city}, ${location.region}<br>
+            ${location.country}<br>
+            <span style="color: #64748B; font-size: 14px;">IP: ${location.ip}</span>
+          </p>
         </div>
+
         <div>
-          <strong style="color: #1E293B;">Device:</strong>
-          <span style="color: #475569;">${device}</span>
+          <p style="margin: 0; color: #334155; font-weight: 600;">Device</p>
+          <p style="margin: 5px 0 0; color: #475569;">${device}</p>
         </div>
       </div>
 
-      <div style="margin: 20px 0; padding: 20px; background-color: #FEF2F2; border: 1px solid #991B1B; border-radius: 4px;">
-        <p style="color: #991B1B; margin: 0;">
-          If you don't recognize this login activity, please contact our support team immediately.
+      <div style="margin-top: 25px; padding: 20px; background-color: #FEF2F2; border: 1px solid #991B1B; border-radius: 8px;">
+        <p style="color: #991B1B; margin: 0; font-size: 15px;">
+          If you didn't log in to your account at this time, please contact our support team immediately.
         </p>
       </div>
 
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
-        <p style="color: #64748B; margin: 0;">
-          Stay secure,<br>
-          <strong style="color: #334155;">NexusEdu Team</strong>
+      <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #E2E8F0;">
+        <p style="color: #64748B; margin: 0; font-size: 15px;">
+          Need assistance? Our support team is here to help.<br>
+          Contact us at <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
         </p>
       </div>
     </div>

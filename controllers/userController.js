@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { welcomeEmailTemplate, loginNotificationTemplate, instituteGuidelinesTemplate } from '../utils/emailTemplates.js';
 import sendEmail from '../utils/emailUtils.js';
 import * as UAParser from 'ua-parser-js';
+import axios from 'axios';
 
 dotenv.config();
 
@@ -96,6 +97,30 @@ const getDeviceInfo = (userAgent) => {
   return `${result.browser.name || 'Unknown browser'} on ${result.os.name || 'Unknown OS'}`;
 };
 
+// Add this function to get location details
+const getLocationInfo = async (ip) => {
+  try {
+    // Use ipapi.co for geolocation (free tier, no API key needed)
+    const response = await axios.get(`https://ipapi.co/${ip}/json/`);
+    const data = response.data;
+    
+    return {
+      city: data.city || 'Unknown City',
+      region: data.region || 'Unknown Region',
+      country: data.country_name || 'Unknown Country',
+      ip: ip
+    };
+  } catch (error) {
+    console.error('Location lookup error:', error);
+    return {
+      city: 'Unknown City',
+      region: 'Unknown Region',
+      country: 'Unknown Country',
+      ip: ip
+    };
+  }
+};
+
 // @desc    Auth user & get token
 // @route   POST /api/users/auth
 // @access  Public
@@ -108,10 +133,16 @@ const authUser = asyncHandler(async (req, res) => {
     if (user && (await user.matchPassword(password))) {
       // Send login notification only for institute and admin users
       if (user.userType === 'institute' || user.userType === 'admin') {
-        // Get device and location info
+        // Get device info
         const device = getDeviceInfo(req.headers['user-agent']);
         const time = new Date().toLocaleString();
-        const location = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+        
+        // Get IP address
+        const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+                  req.connection.remoteAddress;
+        
+        // Get location details
+        const locationInfo = await getLocationInfo(ip);
 
         // Send login notification
         try {
@@ -121,7 +152,12 @@ const authUser = asyncHandler(async (req, res) => {
             html: loginNotificationTemplate({
               name: user.name,
               time,
-              location,
+              location: {
+                city: locationInfo.city,
+                region: locationInfo.region,
+                country: locationInfo.country,
+                ip: locationInfo.ip
+              },
               device
             })
           });
