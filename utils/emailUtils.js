@@ -40,7 +40,7 @@ const sendEmail = async (options, retries = 3) => {
 
       const mailOptions = {
         from: {
-          name: process.env.EMAIL_FROM_NAME || 'Exam Portal',
+          name: process.env.EMAIL_FROM_NAME || 'Team NexusEdu',
           address: process.env.EMAIL_USER
         },
         to: recipient,
