@@ -88,144 +88,48 @@ export const examApprovalTemplate = ({ instituteName, examName, status, feedback
  * @param {string} resultData.dashboardUrl - URL to view detailed results
  * @returns {string} HTML email template
  */
-export const examResultTemplate = (resultData) => `
-<!DOCTYPE html>
-<html>
-  <head>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+export const examResultTemplate = ({ resultData }) => `
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 35px;">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
+        <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
+        <path d="M32 20L40 28M32 20L24 28M32 20V44" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Your Exam Results</h1>
+      <p style="color: #64748B; margin-top: 8px;">${resultData.examName}</p>
+    </div>
 
-      body {
-        font-family: 'Segoe UI', Arial, sans-serif;
-        background-color: #F8FAFC;
-        padding: 20px;
-      }
+    <div style="background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%); padding: 30px; border-radius: 12px; text-align: center; color: white; margin-bottom: 30px;">
+      <p style="font-size: 16px; margin: 0 0 10px;">Overall Score</p>
+      <div style="font-size: 48px; font-weight: 700;">${resultData.score.toFixed(1)}%</div>
+    </div>
 
-      .email-container {
-        max-width: 600px;
-        margin: 0 auto;
-        background-color: #FFFFFF;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-      }
-
-      .header {
-        background: linear-gradient(135deg, #1E293B 0%, #334155 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 8px 8px 0 0;
-        text-align: center;
-      }
-
-      .content {
-        padding: 30px;
-      }
-
-      .score-card {
-        text-align: center;
-        padding: 30px;
-        background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%);
-        color: white;
-        border-radius: 8px;
-        margin: 20px 0;
-      }
-
-      .score-value {
-        font-size: 48px;
-        font-weight: 700;
-        margin: 10px 0;
-      }
-
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 20px;
-        margin: 30px 0;
-      }
-
-      .stat-item {
-        background: #F8FAFC;
-        padding: 20px;
-        border-radius: 8px;
-        text-align: center;
-        border: 1px solid #E2E8F0;
-      }
-
-      .stat-value {
-        font-size: 28px;
-        font-weight: 600;
-        color: #0F766E;
-      }
-
-      .stat-label {
-        font-size: 14px;
-        color: #64748B;
-        margin-top: 8px;
-      }
-
-      .cta-button {
-        display: block;
-        text-align: center;
-        background: #0F766E;
-        color: white;
-        padding: 16px 32px;
-        border-radius: 8px;
-        text-decoration: none;
-        font-weight: 500;
-        margin: 30px 0;
-      }
-
-      .footer {
-        text-align: center;
-        padding: 20px 30px;
-        background: #F8FAFC;
-        border-top: 1px solid #E2E8F0;
-        color: #64748B;
-        font-size: 14px;
-        border-radius: 0 0 8px 8px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="email-container">
-      <div class="header">
-        <h1 style="font-size: 24px; margin-bottom: 8px;">Exam Results</h1>
-        <p style="color: #CBD5E1;">${resultData.examName}</p>
-      </div>
-      
-      <div class="content">
-        <div class="score-card">
-          <p style="font-size: 16px;">Your Score</p>
-          <div class="score-value">${resultData.score.toFixed(1)}%</div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px;">
+      <div style="background: #F8FAFC; padding: 24px; border-radius: 12px; text-align: center;">
+        <div style="font-size: 32px; font-weight: 600; color: #0F766E; margin-bottom: 8px;">
+          ${resultData.correctAnswers}
         </div>
-
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value">${resultData.correctAnswers}</div>
-            <div class="stat-label">Correct Answers</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">${resultData.totalQuestions}</div>
-            <div class="stat-label">Total Questions</div>
-          </div>
-        </div>
-
-        <a href="${resultData.dashboardUrl}" class="cta-button">
-          View Detailed Results
-        </a>
+        <div style="color: #64748B; font-size: 14px;">Correct Answers</div>
       </div>
-
-      <div class="footer">
-        <p style="margin-bottom: 5px;">© ${new Date().getFullYear()} NexusEdu</p>
-        <p>Secure Examination System</p>
+      <div style="background: #F8FAFC; padding: 24px; border-radius: 12px; text-align: center;">
+        <div style="font-size: 32px; font-weight: 600; color: #0F766E; margin-bottom: 8px;">
+          ${resultData.totalQuestions}
+        </div>
+        <div style="color: #64748B; font-size: 14px;">Total Questions</div>
       </div>
     </div>
-  </body>
-</html>
+
+    <a href="${resultData.dashboardUrl}" style="display: block; background: #0F766E; color: white; text-align: center; padding: 16px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-bottom: 30px;">
+      View Detailed Analysis
+    </a>
+
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+      <p style="color: #64748B; margin: 0; font-size: 14px;">
+        © ${new Date().getFullYear()} NexusEdu<br>
+        <span style="color: #94A3B8;">Secure Examination System</span>
+      </p>
+    </div>
+  </div>
 `;
 
 export const welcomeEmailTemplate = ({ name, userType }) => `
@@ -356,83 +260,72 @@ export const loginNotificationTemplate = ({ name, time, location, device }) => `
 `;
 
 export const instituteGuidelinesTemplate = ({ name }) => `
-  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-    <h2 style="color: #1f2937;">Welcome to NexusEdu - Question Paper Guidelines</h2>
-    <p>Dear ${name},</p>
-    
-    <div style="margin: 20px 0; padding: 15px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-      <h3 style="color: #1f2937; margin-top: 0;">Question Paper Format Requirements</h3>
-      
-      <div style="margin-top: 15px;">
-        <h4 style="color: #4338ca;">File Format</h4>
-        <ul style="color: #475569;">
-          <li>Accept JSON format only</li>
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 35px;">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
+        <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
+        <path d="M24 32H40M24 24H40M24 40H32" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Question Paper Guidelines</h1>
+      <p style="color: #64748B; margin-top: 8px;">Welcome to NexusEdu, ${name}</p>
+    </div>
+
+    <div style="margin-bottom: 30px;">
+      <div style="background: #F0FDF4; border-left: 4px solid #0F766E; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+        <h3 style="color: #0F766E; margin: 0 0 12px; font-size: 18px;">File Requirements</h3>
+        <ul style="color: #334155; margin: 0; padding-left: 20px; line-height: 1.6;">
+          <li>JSON format only</li>
           <li>Maximum file size: 10MB</li>
+          <li>Maximum 100 questions per exam</li>
         </ul>
       </div>
 
-      <div style="margin-top: 15px;">
-        <h4 style="color: #4338ca;">JSON Structure</h4>
-        <pre style="background-color: #f1f5f9; padding: 15px; border-radius: 6px; overflow-x: auto; font-size: 13px;">
+      <div style="background: #F8FAFC; padding: 24px; border-radius: 12px; margin-bottom: 24px;">
+        <h3 style="color: #1E293B; margin: 0 0 16px; font-size: 18px;">JSON Structure Example</h3>
+        <div style="background: #F1F5F9; padding: 16px; border-radius: 8px; font-family: monospace; font-size: 14px; color: #334155; overflow-x: auto;">
 {
   "questions": [
     {
       "question": "What is the capital of France?",
-      "options": ["London", "Paris", "Berlin", "Madrid"],
-      "correctAnswer": 2
-    },
-    {
-      "question": "Which planet is known as the Red Planet?",
-      "options": ["Venus", "Mars", "Jupiter", "Saturn"],
+      "options": [
+        "London",
+        "Paris",
+        "Berlin",
+        "Madrid"
+      ],
       "correctAnswer": 2
     }
-    // ... more questions
   ]
-}</pre>
+}
+        </div>
       </div>
 
-      <div style="margin-top: 15px;">
-        <h4 style="color: #4338ca;">Important Notes</h4>
-        <ul style="color: #475569;">
+      <div style="background: #FFFBEB; border-left: 4px solid #D97706; padding: 20px; border-radius: 8px; margin-bottom: 24px;">
+        <h3 style="color: #D97706; margin: 0 0 12px; font-size: 18px;">Important Notes</h3>
+        <ul style="color: #334155; margin: 0; padding-left: 20px; line-height: 1.6;">
           <li>Each question must have exactly 4 options</li>
-          <li>The "question" field contains the question text</li>
-          <li>"options" should be an array of exactly 4 strings</li>
-          <li>"correctAnswer" should be the index (1-4) of the correct option</li>
-          <li>Maximum 100 questions per exam</li>
-          <li>All fields are required for each question</li>
+          <li>correctAnswer should be between 1-4</li>
+          <li>All fields are required</li>
+          <li>Ensure unique question content</li>
         </ul>
       </div>
+
+      <div style="background: #F0FDF4; padding: 24px; border-radius: 12px;">
+        <h3 style="color: #0F766E; margin: 0 0 16px; font-size: 18px;">Next Steps</h3>
+        <ol style="color: #334155; margin: 0; padding-left: 20px; line-height: 1.6;">
+          <li>Prepare your question paper according to the format</li>
+          <li>Login to your institute dashboard</li>
+          <li>Click on "Create New Exam"</li>
+          <li>Upload your JSON file</li>
+          <li>Wait for admin approval</li>
+        </ol>
+      </div>
     </div>
 
-    <div style="margin-top: 20px; padding: 15px; background-color: #fff7ed; border: 1px solid #f97316; border-radius: 8px;">
-      <h4 style="color: #c2410c; margin-top: 0;">⚠️ Important</h4>
-      <ul style="color: #475569;">
-        <li>Ensure all questions have unique content</li>
-        <li>Double-check correctAnswer indices (0-3)</li>
-        <li>Verify all options are properly formatted</li>
-        <li>Make sure the JSON is properly formatted and valid</li>
-      </ul>
-    </div>
-
-    <div style="margin-top: 20px; padding: 15px; background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px;">
-      <h4 style="color: #047857; margin-top: 0;">Next Steps</h4>
-      <ol style="color: #475569;">
-        <li>Prepare your question paper according to the format above</li>
-        <li>Login to your institute dashboard</li>
-        <li>Click on "Create New Exam"</li>
-        <li>Upload your JSON file</li>
-        <li>Wait for admin approval</li>
-      </ol>
-    </div>
-
-    <p style="margin-top: 20px;">
-      If you have any questions about the format or need assistance, please contact our support team.
-    </p>
-    
-    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-      <p style="color: #6b7280; font-size: 0.9em;">
-        Best regards,<br>
-        NexusEdu Team
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+      <p style="color: #64748B; margin: 0; font-size: 14px;">
+        Need assistance? Contact our support team at<br>
+        <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
       </p>
     </div>
   </div>
