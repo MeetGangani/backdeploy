@@ -332,29 +332,57 @@ const releaseResults = asyncHandler(async (req, res) => {
       .populate('student', 'email name')
       .lean();
 
+    // Send emails in batches with better error handling
     const batchSize = 50;
     for (let i = 0; i < responses.length; i += batchSize) {
       const batch = responses.slice(i, i + batchSize);
-      for (const response of batch) {
-        if (response.student?.email) {
-          try {
-            await sendEmail({
-              to: response.student.email,
-              subject: `Exam Results Available - ${exam.examName}`,
-              html: examResultTemplate({
-                examName: exam.examName,
-                score: response.score,
-                correctAnswers: response.correctAnswers,
-                totalQuestions: response.totalQuestions,
-                submittedAt: response.submittedAt,
-                dashboardUrl: `${process.env.FRONTEND_URL}/student/results/${response._id}`
-              })
-            });
-          } catch (emailError) {
-            logger.error('Email notification error:', emailError);
-          }
+      
+      await Promise.all(batch.map(async (response) => {
+        if (!response.student?.email) {
+          logger.warn(`No email found for student: ${response.student?._id}`);
+          return;
         }
-      }
+
+        try {
+          // Format the submission date
+          const submittedAt = new Date(response.submittedAt).toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+
+          // Create the dashboard URL
+          const dashboardUrl = `${process.env.FRONTEND_URL}/student/results/${response._id}`;
+
+          // Prepare result data
+          const resultData = {
+            examName: exam.examName,
+            score: response.score || 0,
+            correctAnswers: response.correctAnswers || 0,
+            totalQuestions: response.totalQuestions,
+            submittedAt: submittedAt,
+            dashboardUrl: dashboardUrl,
+            studentName: response.student.name
+          };
+
+          await sendEmail({
+            to: response.student.email,
+            subject: `Exam Results Available - ${exam.examName}`,
+            html: examResultTemplate({ resultData })
+          });
+
+          logger.info(`Result notification sent to: ${response.student.email}`);
+        } catch (emailError) {
+          logger.error('Email notification error:', {
+            error: emailError.message,
+            studentId: response.student._id,
+            examId: exam._id
+          });
+        }
+      }));
     }
 
     res.json({

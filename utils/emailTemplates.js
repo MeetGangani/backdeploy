@@ -91,16 +91,12 @@ export const examApprovalTemplate = ({ instituteName, examName, status, feedback
 export const examResultTemplate = ({ resultData }) => `
   <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
     <div style="text-align: center; margin-bottom: 35px;">
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
-        <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
-        <path d="M32 20L40 28M32 20L24 28M32 20V44" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
       <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Your Exam Results</h1>
       <p style="color: #64748B; margin-top: 8px;">${resultData.examName}</p>
     </div>
 
     <div style="background: linear-gradient(135deg, #0F766E 0%, #0D9488 100%); padding: 30px; border-radius: 12px; text-align: center; color: white; margin-bottom: 30px;">
-      <p style="font-size: 16px; margin: 0 0 10px;">Overall Score</p>
+      <p style="font-size: 16px; margin: 0 0 10px;">Hello ${resultData.studentName},</p>
       <div style="font-size: 48px; font-weight: 700;">${resultData.score.toFixed(1)}%</div>
     </div>
 
@@ -119,7 +115,12 @@ export const examResultTemplate = ({ resultData }) => `
       </div>
     </div>
 
-    <a href="${resultData.dashboardUrl}" style="display: block; background: #0F766E; color: white; text-align: center; padding: 16px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-bottom: 30px;">
+    <div style="margin-bottom: 30px; text-align: center; color: #64748B;">
+      <p>Exam completed on: ${resultData.submittedAt}</p>
+    </div>
+
+    <a href="${resultData.dashboardUrl}" 
+       style="display: block; background: #0F766E; color: white; text-align: center; padding: 16px 24px; border-radius: 8px; text-decoration: none; font-weight: 500; margin-bottom: 30px;">
       View Detailed Analysis
     </a>
 
@@ -417,4 +418,4 @@ ${JSON.stringify(examFormatExample, null, 2)}
       </div>
     </div>
   `;
-}; 
+};
