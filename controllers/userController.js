@@ -97,25 +97,32 @@ const getDeviceInfo = (userAgent) => {
   return `${result.browser.name || 'Unknown browser'} on ${result.os.name || 'Unknown OS'}`;
 };
 
-// Add this function to get location details
+// Modified getLocationInfo function with fallback and rate limit handling
 const getLocationInfo = async (ip) => {
   try {
-    // Use ipapi.co for geolocation (free tier, no API key needed)
-    const response = await axios.get(`https://ipapi.co/${ip}/json/`);
-    const data = response.data;
-    
+    // First attempt with ipapi.co
+    const response = await axios.get(`https://ipapi.co/${ip}/json/`, {
+      timeout: 3000, // 3 second timeout
+      headers: {
+        'User-Agent': 'NexusEdu/1.0'
+      }
+    });
+
+    // Check if we got rate limited
+    if (response.data.error && response.data.reason === 'RateLimited') {
+      throw new Error('Rate limited');
+    }
+
     return {
-      city: data.city || 'Unknown City',
-      region: data.region || 'Unknown Region',
-      country: data.country_name || 'Unknown Country',
+      country: response.data.country_name || 'Unknown Country',
       ip: ip
     };
   } catch (error) {
-    console.error('Location lookup error:', error);
+    // Log error but don't let it break the flow
+    console.log('Location lookup fallback: Using default values');
+    
     return {
-      city: 'Unknown City',
-      region: 'Unknown Region',
-      country: 'Unknown Country',
+      country: 'Location Unavailable',
       ip: ip
     };
   }
@@ -133,36 +140,28 @@ const authUser = asyncHandler(async (req, res) => {
     if (user && (await user.matchPassword(password))) {
       // Send login notification only for institute and admin users
       if (user.userType === 'institute' || user.userType === 'admin') {
-        // Get device info
-        const device = getDeviceInfo(req.headers['user-agent']);
-        const time = new Date().toLocaleString();
-        
-        // Get IP address
-        const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
-                  req.connection.remoteAddress;
-        
-        // Get location details
-        const locationInfo = await getLocationInfo(ip);
-
-        // Send login notification
         try {
+          const device = getDeviceInfo(req.headers['user-agent']);
+          const time = new Date().toLocaleString();
+          const ip = req.headers['x-forwarded-for']?.split(',')[0] || 
+                    req.connection.remoteAddress;
+          
+          // Get location info with fallback
+          const locationInfo = await getLocationInfo(ip);
+
           await sendEmail({
             to: email,
             subject: 'New Login to Your NexusEdu Account',
             html: loginNotificationTemplate({
               name: user.name,
               time,
-              location: {
-                city: locationInfo.city,
-                region: locationInfo.region,
-                country: locationInfo.country,
-                ip: locationInfo.ip
-              },
+              location: locationInfo,
               device
             })
           });
-        } catch (emailError) {
-          console.error('Login notification email error:', emailError);
+        } catch (notificationError) {
+          // Log error but don't block login
+          console.error('Login notification error:', notificationError);
         }
       }
 
@@ -179,7 +178,7 @@ const authUser = asyncHandler(async (req, res) => {
       throw new Error('Invalid email or password');
     }
   } catch (error) {
-    res.status(500);
+    res.status(error.status || 500);
     throw new Error(error.message || 'Login failed');
   }
 });
