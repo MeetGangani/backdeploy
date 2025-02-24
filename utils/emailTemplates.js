@@ -63,7 +63,7 @@ export const examApprovalTemplate = ({ instituteName, examName, status, feedback
         <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #E2E8F0;">
           <p style="color: #64748B; margin: 0; font-size: 15px;">
             Need assistance? Our support team is here to help.<br>
-            Contact us at <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
+            Contact us at <a href="mailto:nexusedu6@gmail.com" style="color: #0F766E; text-decoration: none;">nexusedu6@gmail.com</a>
           </p>
         </div>
 
@@ -348,7 +348,7 @@ export const loginNotificationTemplate = ({ name, time, location, device }) => `
       <div style="margin-top: 35px; padding-top: 25px; border-top: 1px solid #E2E8F0;">
         <p style="color: #64748B; margin: 0; font-size: 15px;">
           Need assistance? Our support team is here to help.<br>
-          Contact us at <a href="mailto:support@nexusedu.com" style="color: #0F766E; text-decoration: none;">support@nexusedu.com</a>
+          Contact us at <a href="mailto:nexusedu6@gmail.com" style="color: #0F766E; text-decoration: none;">nexusedu6@gmail.com</a>
         </p>
       </div>
     </div>
