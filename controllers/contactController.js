@@ -9,7 +9,7 @@ const sendContactMessage = asyncHandler(async (req, res) => {
 
   if (!name || !email || !subject || !message) {
     res.status(400);
-    throw new Error('Please fill all fields');
+    throw new Error('Please fill all fields'); 
   }
 
   // Create a transporter using your email service
