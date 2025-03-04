@@ -440,3 +440,67 @@ ${JSON.stringify(examFormatExample, null, 2)}
     </div>
   `;
 };
+
+/**
+ * Generates HTML email template for OTP verification
+ * @param {Object} data - The OTP data
+ * @param {string} data.otp - The OTP code
+ * @param {string} data.email - User's email address
+ * @returns {string} HTML email template
+ */
+export const otpEmailTemplate = ({ otp, email }) => `
+  <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    <div style="text-align: center; margin-bottom: 35px;">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style="margin: 0 auto 20px;">
+        <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
+        <path d="M32 20V32L40 36" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Verify Your Email</h1>
+      <p style="color: #64748B; margin-top: 8px;">Complete your registration with NexusEdu</p>
+    </div>
+
+    <div style="color: #334155; line-height: 1.6;">
+      <p style="font-size: 16px;">Hello,</p>
+      <p style="font-size: 16px;">Please use the verification code below to verify your email address (${email}):</p>
+
+      <div style="margin: 32px 0; text-align: center;">
+        <div style="background: #F8FAFC; padding: 24px; border-radius: 12px; letter-spacing: 8px; font-size: 32px; font-weight: 600; color: #0F766E; font-family: monospace;">
+          ${otp}
+        </div>
+      </div>
+
+      <div style="margin: 32px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #0F766E; border-radius: 8px;">
+        <p style="color: #0F766E; margin: 0; font-size: 15px;">
+          ⚠️ This code will expire in 10 minutes for security reasons.
+        </p>
+      </div>
+
+      <p style="color: #64748B; font-size: 14px;">
+        If you didn't request this code, you can safely ignore this email. Someone might have typed your email address by mistake.
+      </p>
+
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
+        <p style="color: #64748B; margin: 0; font-size: 14px;">
+          Best regards,<br>
+          <strong style="color: #334155;">NexusEdu Team</strong>
+        </p>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 40px;">
+      <p style="color: #94A3B8; margin: 0; font-size: 12px;">
+        © ${new Date().getFullYear()} NexusEdu. All rights reserved.<br>
+        <span style="color: #CBD5E1;">Secure Examination System</span>
+      </p>
+    </div>
+  </div>
+`;
+
+export {
+  welcomeEmailTemplate,
+  loginNotificationTemplate,
+  instituteGuidelinesTemplate,
+  examApprovalTemplate,
+  examResultTemplate,
+  otpEmailTemplate
+};

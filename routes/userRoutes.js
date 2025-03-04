@@ -8,12 +8,16 @@ import {
   googleAuth,
   googleCallback,
   checkAuth,
+  sendOTP,
+  verifyOTP,
 } from '../controllers/userController.js';
 import { protect, adminOnly, instituteOnly } from '../middleware/authMiddleware.js';
 import passport from 'passport';
 
 const router = express.Router();
 
+router.post('/send-otp', sendOTP);
+router.post('/verify-otp', verifyOTP);
 router.post('/', registerUser);
 router.post('/auth', authUser);
 router.post('/logout', logoutUser);

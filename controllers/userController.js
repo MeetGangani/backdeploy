@@ -1,11 +1,12 @@
 import asyncHandler from 'express-async-handler';
 import User from '../models/userModel.js';
+import OTP from '../models/otpModel.js';
 import generateToken from '../utils/generateToken.js';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
-import { welcomeEmailTemplate, loginNotificationTemplate, instituteGuidelinesTemplate } from '../utils/emailTemplates.js';
+import { welcomeEmailTemplate, loginNotificationTemplate, instituteGuidelinesTemplate, otpEmailTemplate } from '../utils/emailTemplates.js';
 import sendEmail from '../utils/emailUtils.js';
 import * as UAParser from 'ua-parser-js';
 import axios from 'axios';
@@ -198,6 +199,83 @@ const authUser = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Send OTP for email verification
+// @route   POST /api/users/send-otp
+// @access  Public
+const sendOTP = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  // Check if email already exists
+  const userExists = await User.findOne({ email });
+  if (userExists) {
+    res.status(400);
+    throw new Error('User already exists');
+  }
+
+  // Generate 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  
+  // Store OTP in database with expiration
+  await OTP.findOneAndUpdate(
+    { email },
+    { 
+      otp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes expiry
+    },
+    { upsert: true, new: true }
+  );
+
+  // Send OTP email
+  try {
+    await sendEmail({
+      to: email,
+      subject: 'Verify your email for NexusEdu',
+      html: otpEmailTemplate({
+        otp,
+        email
+      })
+    });
+
+    res.status(200).json({ 
+      message: 'OTP sent successfully',
+      email 
+    });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Failed to send OTP email');
+  }
+});
+
+// @desc    Verify OTP
+// @route   POST /api/users/verify-otp
+// @access  Public
+const verifyOTP = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+
+  const otpRecord = await OTP.findOne({ 
+    email,
+    expiresAt: { $gt: new Date() }
+  });
+
+  if (!otpRecord) {
+    res.status(400);
+    throw new Error('OTP expired or not found');
+  }
+
+  if (otpRecord.otp !== otp) {
+    res.status(400);
+    throw new Error('Invalid OTP');
+  }
+
+  // Delete the OTP record after successful verification
+  await OTP.deleteOne({ email });
+
+  res.status(200).json({ 
+    message: 'Email verified successfully',
+    verified: true 
+  });
+});
+
 // @desc    Register a new user
 // @route   POST /api/users
 // @access  Public
@@ -212,6 +290,7 @@ const registerUser = asyncHandler(async (req, res) => {
       throw new Error('User already exists');
     }
 
+    // Create new user
     const user = await User.create({
       name,
       email,
@@ -256,7 +335,7 @@ const registerUser = asyncHandler(async (req, res) => {
         console.error('Email sending error:', emailError);
       }
 
-      // Only generate token if it's a regular registration
+      // Generate token if it's a regular registration
       if (!req.user || req.user.userType !== 'admin') {
         generateToken(res, user._id);
       }
@@ -409,4 +488,6 @@ export {
   googleAuth,
   googleCallback,
   checkAuth,
+  sendOTP,
+  verifyOTP,
 };
