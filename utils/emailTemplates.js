@@ -455,29 +455,37 @@ export const otpEmailTemplate = ({ otp, email }) => `
         <circle cx="32" cy="32" r="32" fill="#0F766E" fill-opacity="0.1"/>
         <path d="M32 20V32L40 36" stroke="#0F766E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
-      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Verify Your Email</h1>
-      <p style="color: #64748B; margin-top: 8px;">Complete your registration with NexusEdu</p>
+      <h1 style="color: #1E293B; font-size: 24px; margin: 0;">Email Verification</h1>
+      <p style="color: #64748B; margin-top: 8px;">Complete your NexusEdu registration</p>
     </div>
 
     <div style="color: #334155; line-height: 1.6;">
       <p style="font-size: 16px;">Hello,</p>
-      <p style="font-size: 16px;">Please use the verification code below to verify your email address (${email}):</p>
+      <p style="font-size: 16px;">Please use the verification code below to verify your email address:</p>
+      <p style="color: #0F766E; font-weight: 500;">${email}</p>
 
       <div style="margin: 32px 0; text-align: center;">
-        <div style="background: #F8FAFC; padding: 24px; border-radius: 12px; letter-spacing: 8px; font-size: 32px; font-weight: 600; color: #0F766E; font-family: monospace;">
-          ${otp}
+        <div style="background: #F0FDF4; padding: 24px; border-radius: 12px; border: 2px solid #0F766E;">
+          <div style="font-family: monospace; letter-spacing: 8px; font-size: 36px; font-weight: 600; color: #0F766E;">
+            ${otp}
+          </div>
         </div>
       </div>
 
-      <div style="margin: 32px 0; padding: 20px; background-color: #F0FDF4; border: 1px solid #0F766E; border-radius: 8px;">
-        <p style="color: #0F766E; margin: 0; font-size: 15px;">
-          ⚠️ This code will expire in 10 minutes for security reasons.
-        </p>
+      <div style="margin: 32px 0; padding: 20px; background-color: #FFFBEB; border-left: 4px solid #D97706; border-radius: 8px;">
+        <h3 style="color: #D97706; margin: 0 0 12px; font-size: 16px;">Important Notes:</h3>
+        <ul style="color: #92400E; margin: 0; padding-left: 20px; line-height: 1.6;">
+          <li>This code will expire in 10 minutes</li>
+          <li>For security, do not share this code with anyone</li>
+          <li>Enter the code exactly as shown above</li>
+        </ul>
       </div>
 
-      <p style="color: #64748B; font-size: 14px;">
-        If you didn't request this code, you can safely ignore this email. Someone might have typed your email address by mistake.
-      </p>
+      <div style="background: #F8FAFC; padding: 20px; border-radius: 8px; margin-top: 24px;">
+        <p style="color: #64748B; margin: 0; font-size: 14px;">
+          If you didn't request this code, you can safely ignore this email. Someone might have typed your email address by mistake.
+        </p>
+      </div>
 
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #E2E8F0;">
         <p style="color: #64748B; margin: 0; font-size: 14px;">
@@ -495,12 +503,3 @@ export const otpEmailTemplate = ({ otp, email }) => `
     </div>
   </div>
 `;
-
-export {
-  welcomeEmailTemplate,
-  loginNotificationTemplate,
-  instituteGuidelinesTemplate,
-  examApprovalTemplate,
-  examResultTemplate,
-  otpEmailTemplate
-};
