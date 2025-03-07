@@ -40,6 +40,6 @@ router.post('/exams/start', startExam);
 
 // New routes for exam creation
 router.post('/create-binary', protect, instituteOnly, upload.single('examData'), createExam);
-router.post('/upload-images', protect, instituteOnly, upload.array('images'), uploadExamImages);
+router.post('/upload-images', protect, instituteOnly, upload.array('images', 10), uploadExamImages);
 
 export default router; 

@@ -509,25 +509,29 @@ const validateQuestions = (questions) => {
 const uploadExamImages = asyncHandler(async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'No images provided' });
+      res.status(400);
+      throw new Error('No images provided');
     }
 
+    logger.info(`Uploading ${req.files.length} images`);
+    
+    // Process each file and upload to Cloudinary
     const uploadPromises = req.files.map(file => {
       return uploadToCloudinary(file.buffer);
     });
 
     const imageUrls = await Promise.all(uploadPromises);
+    
+    logger.info('Images uploaded successfully:', imageUrls);
 
     res.status(200).json({
       message: 'Images uploaded successfully',
-      imageUrls
+      imageUrls: imageUrls
     });
   } catch (error) {
-    console.error('Image upload error:', error);
-    res.status(500).json({
-      message: 'Failed to upload images',
-      error: error.message
-    });
+    logger.error('Image upload error:', error);
+    res.status(500);
+    throw new Error('Failed to upload images: ' + error.message);
   }
 });
 
