@@ -1,4 +1,5 @@
 import express from 'express';
+import multer from 'multer';
 import {
   getAvailableExams,
   startExam,
@@ -6,12 +7,15 @@ import {
   releaseResults,
   getMyResults,
   getExamResults,
-  checkExamMode
+  checkExamMode,
+  createExam,
+  uploadExamImages
 } from '../controllers/examController.js';
-import { protect } from '../middleware/authMiddleware.js';
+import { protect, instituteOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Student routes
 router.route('/submit')
@@ -33,5 +37,9 @@ router.get('/check-mode/:ipfsHash', checkExamMode);
 
 // Route to start the exam
 router.post('/exams/start', startExam);
+
+// New routes for exam creation
+router.post('/create-binary', protect, instituteOnly, upload.single('examData'), createExam);
+router.post('/upload-images', protect, instituteOnly, upload.array('images'), uploadExamImages);
 
 export default router; 

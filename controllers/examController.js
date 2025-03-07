@@ -6,6 +6,8 @@ import sendEmail from '../utils/emailUtils.js';
 import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
+import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
+import { uploadToCloudinary } from '../utils/cloudinaryUtils.js';
 
 const logger = createLogger('examController');
 
@@ -399,6 +401,136 @@ const releaseResults = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Create a new exam from binary data
+// @route   POST /api/exams/create-binary
+// @access  Institute Only
+const createExam = asyncHandler(async (req, res) => {
+  try {
+    // 1. Validate request
+    if (!req.file) {
+      res.status(400);
+      throw new Error('No exam data provided');
+    }
+
+    // 2. Parse binary data
+    const examDataBuffer = req.file.buffer;
+    const decoder = new TextDecoder();
+    const jsonString = decoder.decode(examDataBuffer);
+    const examData = JSON.parse(jsonString);
+
+    // 3. Validate exam data
+    if (!examData.examName || !examData.timeLimit || !examData.questions || !Array.isArray(examData.questions)) {
+      res.status(400);
+      throw new Error('Invalid exam data format');
+    }
+
+    // 4. Validate questions
+    validateQuestions(examData.questions);
+
+    // 5. Generate encryption key and encrypt data
+    const encryptionKey = generateEncryptionKey();
+    const encryptedData = encryptFile(JSON.stringify(examData), encryptionKey);
+
+    // 6. Create file request in database
+    const fileRequest = await FileRequest.create({
+      institute: req.user._id,
+      submittedBy: req.user._id,
+      examName: examData.examName,
+      description: examData.description || 'No description provided',
+      encryptedData: encryptedData,
+      encryptionKey: encryptionKey,
+      totalQuestions: examData.questions.length,
+      status: 'pending',
+      timeLimit: examData.timeLimit,
+      passingPercentage: examData.passingPercentage || 60,
+    });
+
+    // 7. Send success response
+    res.status(201).json({
+      message: 'Exam created successfully',
+      requestId: fileRequest._id,
+      examName: fileRequest.examName,
+      totalQuestions: fileRequest.totalQuestions,
+    });
+  } catch (error) {
+    console.error('Exam creation error:', error);
+    res.status(error.status || 500);
+    throw new Error(error.message || 'Failed to create exam');
+  }
+});
+
+// Validate questions format for both single and multiple choice
+const validateQuestions = (questions) => {
+  if (!Array.isArray(questions)) throw new Error('Questions must be an array');
+  
+  questions.forEach((q, index) => {
+    if (!q.questionText && !q.questionImage) {
+      throw new Error(`Question ${index + 1} must have text or an image`);
+    }
+    
+    if (!Array.isArray(q.options) || q.options.length < 2) {
+      throw new Error(`Question ${index + 1} must have at least 2 options`);
+    }
+    
+    // Check if any option is empty
+    q.options.forEach((opt, optIndex) => {
+      if (!opt.text && !opt.image) {
+        throw new Error(`Option ${optIndex + 1} in question ${index + 1} must have text or an image`);
+      }
+    });
+    
+    // Validate based on question type (inferred from correctOptions presence)
+    if (Array.isArray(q.correctOptions) && q.correctOptions.length > 0) {
+      // Multiple choice question
+      if (q.correctOptions.length === 0) {
+        throw new Error(`Question ${index + 1} must have at least one correct answer`);
+      }
+      
+      // Check if all correct options are valid indices
+      q.correctOptions.forEach(optIndex => {
+        if (optIndex < 0 || optIndex >= q.options.length) {
+          throw new Error(`Question ${index + 1} has invalid correct option index`);
+        }
+      });
+    } else {
+      // Single choice question
+      if (typeof q.correctOption !== 'number' || q.correctOption < 0 || q.correctOption >= q.options.length) {
+        throw new Error(`Question ${index + 1} has invalid correct answer index`);
+      }
+    }
+  });
+  
+  return true;
+};
+
+// @desc    Upload exam images
+// @route   POST /api/exams/upload-images
+// @access  Institute Only
+const uploadExamImages = asyncHandler(async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No images provided' });
+    }
+
+    const uploadPromises = req.files.map(file => {
+      return uploadToCloudinary(file.buffer);
+    });
+
+    const imageUrls = await Promise.all(uploadPromises);
+
+    res.status(200).json({
+      message: 'Images uploaded successfully',
+      imageUrls
+    });
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({
+      message: 'Failed to upload images',
+      error: error.message
+    });
+  }
+});
+
 export {
   getAvailableExams,
   checkExamMode,
@@ -406,5 +538,7 @@ export {
   submitExam,
   releaseResults,
   getMyResults,
-  getExamResults
+  getExamResults,
+  createExam,
+  uploadExamImages
 };

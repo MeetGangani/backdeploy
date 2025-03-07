@@ -51,32 +51,44 @@ const fileRequestSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected'],
     default: 'pending'
   },
-  adminComment: String,
+  adminComment: {
+    type: String
+  },
+  reviewedAt: {
+    type: Date
+  },
   reviewedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  reviewedAt: Date,
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  timeLimit: {
+    type: Number,
+    required: true,
+    default: 60 // Default 60 minutes
+  },
+  passingPercentage: {
+    type: Number,
+    default: 60 // Default 60%
+  },
+  examMode: {
+    type: Boolean,
+    default: false
+  },
   resultsReleased: {
     type: Boolean,
     default: false
   },
-  timeLimit: {
-    type: Number,
-    default: 60
+  ipfsHash: {
+    type: String
   },
   questions: [questionSchema], // Will be populated after decryption
-  ipfsHash: {
-    type: String,
-    default: null
-  },
   ipfsEncryptionKey: {
     type: String,
     default: null
-  },
-  examMode: {
-    type: Boolean,
-    default: false // Default to disabled
   }
 }, {
   timestamps: true
