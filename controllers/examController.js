@@ -406,83 +406,47 @@ const releaseResults = asyncHandler(async (req, res) => {
 // @access  Institute Only
 const createExam = asyncHandler(async (req, res) => {
   try {
-    const { examName, description, timeLimit, questions } = req.body;
+    const { examName, description, subject, timeLimit, passingPercentage, questions } = req.body;
     
-    // Parse questions if they're sent as a string
-    let parsedQuestions = questions;
-    if (typeof questions === 'string') {
-      try {
-        parsedQuestions = JSON.parse(questions);
-      } catch (error) {
-        logger.error('Error parsing questions JSON:', error);
-        res.status(400);
-        throw new Error('Invalid questions format');
-      }
-    }
-    
-    // Validate the exam data
-    if (!examName) {
+    // Basic validation
+    if (!examName || !questions || !Array.isArray(questions)) {
       res.status(400);
-      throw new Error('Exam name is required');
+      throw new Error('Invalid exam data format');
     }
     
-    if (!timeLimit || isNaN(parseInt(timeLimit))) {
-      res.status(400);
-      throw new Error('Valid time limit is required');
-    }
-    
-    if (!parsedQuestions || !Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
-      res.status(400);
-      throw new Error('At least one question is required');
-    }
-    
-    // Validate each question
-    try {
-      validateQuestions(parsedQuestions);
-    } catch (error) {
-      res.status(400);
-      throw new Error(error.message);
-    }
-    
-    // Generate encryption key
-    const encryptionKey = generateEncryptionKey();
-    
-    // Create exam data object
-    const examData = {
-      examName,
-      description: description || '',
-      timeLimit: parseInt(timeLimit),
-      questions: parsedQuestions,
-      totalQuestions: parsedQuestions.length
-    };
-    
-    // Encrypt the exam data
-    const { encryptedData, ipfsHash } = await encryptFile(examData, encryptionKey);
-    
-    // Create a new file request
+    // Create a new exam document
     const newExam = new FileRequest({
       examName,
-      description: description || '',
-      ipfsHash,
-      encryptionKey,
-      timeLimit: parseInt(timeLimit),
-      totalQuestions: parsedQuestions.length,
-      institute: req.user._id,
+      description,
+      subject,
+      timeLimit: timeLimit || 60,
+      passingPercentage: passingPercentage || 60,
+      questions: questions.map(q => ({
+        questionText: q.questionText,
+        questionImage: q.questionImage,
+        questionType: q.questionType || 'single',
+        options: q.options.map(opt => ({
+          text: opt.text,
+          image: opt.image
+        })),
+        correctOption: q.questionType === 'single' ? q.correctOption : -1,
+        correctOptions: q.questionType === 'multiple' ? q.correctOptions : []
+      })),
+      createdBy: req.user._id,
+      institute: req.user.institute,
       status: 'approved', // Auto-approve for institute-created exams
       examMode: false // Default to inactive
     });
     
-    await newExam.save();
-    
-    logger.info(`New exam created: ${examName} with IPFS hash: ${ipfsHash}`);
+    // Save the exam
+    const savedExam = await newExam.save();
     
     res.status(201).json({
       message: 'Exam created successfully',
-      examId: newExam._id,
-      ipfsHash
+      examId: savedExam._id
     });
   } catch (error) {
-    logger.error('Error creating exam:', error);
+    console.error('Error creating exam:', error);
     res.status(500).json({
       message: 'Failed to create exam',
       error: error.message
