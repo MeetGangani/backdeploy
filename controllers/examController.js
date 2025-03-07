@@ -406,56 +406,87 @@ const releaseResults = asyncHandler(async (req, res) => {
 // @access  Institute Only
 const createExam = asyncHandler(async (req, res) => {
   try {
-    // 1. Validate request
-    if (!req.file) {
-      res.status(400);
-      throw new Error('No exam data provided');
+    const { examName, description, timeLimit, questions } = req.body;
+    
+    // Parse questions if they're sent as a string
+    let parsedQuestions = questions;
+    if (typeof questions === 'string') {
+      try {
+        parsedQuestions = JSON.parse(questions);
+      } catch (error) {
+        logger.error('Error parsing questions JSON:', error);
+        res.status(400);
+        throw new Error('Invalid questions format');
+      }
     }
-
-    // 2. Parse binary data
-    const examDataBuffer = req.file.buffer;
-    const decoder = new TextDecoder();
-    const jsonString = decoder.decode(examDataBuffer);
-    const examData = JSON.parse(jsonString);
-
-    // 3. Validate exam data
-    if (!examData.examName || !examData.timeLimit || !examData.questions || !Array.isArray(examData.questions)) {
+    
+    // Validate the exam data
+    if (!examName) {
       res.status(400);
-      throw new Error('Invalid exam data format');
+      throw new Error('Exam name is required');
     }
-
-    // 4. Validate questions
-    validateQuestions(examData.questions);
-
-    // 5. Generate encryption key and encrypt data
+    
+    if (!timeLimit || isNaN(parseInt(timeLimit))) {
+      res.status(400);
+      throw new Error('Valid time limit is required');
+    }
+    
+    if (!parsedQuestions || !Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+      res.status(400);
+      throw new Error('At least one question is required');
+    }
+    
+    // Validate each question
+    try {
+      validateQuestions(parsedQuestions);
+    } catch (error) {
+      res.status(400);
+      throw new Error(error.message);
+    }
+    
+    // Generate encryption key
     const encryptionKey = generateEncryptionKey();
-    const encryptedData = encryptFile(JSON.stringify(examData), encryptionKey);
-
-    // 6. Create file request in database
-    const fileRequest = await FileRequest.create({
+    
+    // Create exam data object
+    const examData = {
+      examName,
+      description: description || '',
+      timeLimit: parseInt(timeLimit),
+      questions: parsedQuestions,
+      totalQuestions: parsedQuestions.length
+    };
+    
+    // Encrypt the exam data
+    const { encryptedData, ipfsHash } = await encryptFile(examData, encryptionKey);
+    
+    // Create a new file request
+    const newExam = new FileRequest({
+      examName,
+      description: description || '',
+      ipfsHash,
+      encryptionKey,
+      timeLimit: parseInt(timeLimit),
+      totalQuestions: parsedQuestions.length,
       institute: req.user._id,
-      submittedBy: req.user._id,
-      examName: examData.examName,
-      description: examData.description || 'No description provided',
-      encryptedData: encryptedData,
-      encryptionKey: encryptionKey,
-      totalQuestions: examData.questions.length,
-      status: 'pending',
-      timeLimit: examData.timeLimit,
-      passingPercentage: examData.passingPercentage || 60,
+      status: 'approved', // Auto-approve for institute-created exams
+      examMode: false // Default to inactive
     });
-
-    // 7. Send success response
+    
+    await newExam.save();
+    
+    logger.info(`New exam created: ${examName} with IPFS hash: ${ipfsHash}`);
+    
     res.status(201).json({
       message: 'Exam created successfully',
-      requestId: fileRequest._id,
-      examName: fileRequest.examName,
-      totalQuestions: fileRequest.totalQuestions,
+      examId: newExam._id,
+      ipfsHash
     });
   } catch (error) {
-    console.error('Exam creation error:', error);
-    res.status(error.status || 500);
-    throw new Error(error.message || 'Failed to create exam');
+    logger.error('Error creating exam:', error);
+    res.status(500).json({
+      message: 'Failed to create exam',
+      error: error.message
+    });
   }
 });
 

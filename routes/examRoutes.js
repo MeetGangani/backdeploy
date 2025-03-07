@@ -39,7 +39,7 @@ router.get('/check-mode/:ipfsHash', checkExamMode);
 router.post('/exams/start', startExam);
 
 // New routes for exam creation
-router.post('/create-binary', protect, instituteOnly, upload.single('examData'), createExam);
+router.post('/create-binary', protect, instituteOnly, express.json({ limit: '50mb' }), createExam);
 router.post('/upload-images', protect, instituteOnly, upload.array('images', 10), uploadExamImages);
 
 export default router; 
