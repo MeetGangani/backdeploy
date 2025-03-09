@@ -10,7 +10,7 @@ const questionSchema = new mongoose.Schema({
     required: true
   }],
   correctAnswer: {
-    type: Number, // Index of correct option (0-3)
+    type: Number,
     required: true
   }
 });

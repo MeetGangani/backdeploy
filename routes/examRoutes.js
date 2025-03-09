@@ -48,4 +48,28 @@ router.post(
 );
 router.post('/upload-images', protect, upload.array('images'), uploadExamImages);
 
+// Excel upload endpoint - keeping it simple
+router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Process the file and return questions
+    const questions = []; // Your question processing logic here
+    
+    res.json({ 
+      success: true,
+      questions 
+    });
+
+  } catch (error) {
+    console.error('Excel processing error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to process Excel file' 
+    });
+  }
+});
+
 export default router; 
