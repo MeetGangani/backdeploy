@@ -52,105 +52,76 @@ const checkExamMode = asyncHandler(async (req, res) => {
   });
 });
 
-// Start exam with validation
+// @desc    Start an exam for a student
+// @route   POST /api/exams/start
+// @access  Student Only
 const startExam = asyncHandler(async (req, res) => {
-  const { ipfsHash } = req.body;
-
   try {
-    logger.info(`Starting exam with IPFS hash: ${ipfsHash}`);
-
-    const exam = await FileRequest.findOne({
-      ipfsHash: ipfsHash.trim()
-    });
-
-    if (!exam) {
-      logger.error(`No exam found with IPFS hash: ${ipfsHash}`);
-      res.status(404);
-      throw new Error('Exam not found with the provided IPFS hash');
-    }
-
-    // Check exam mode before proceeding
-    if (!exam.examMode) {
-      logger.error('Attempt to start exam when exam mode is disabled');
+    const { ipfsHash } = req.body;
+    
+    if (!ipfsHash) {
       res.status(400);
-      throw new Error('This exam has not been started by the institute yet');
+      throw new Error('IPFS hash is required');
     }
-
-    const existingAttempt = await ExamResponse.findOne({
-      exam: exam._id,
-      student: req.user._id
+    
+    // Find the exam by IPFS hash
+    const exam = await FileRequest.findOne({ 
+      ipfsHash: ipfsHash,
+      examMode: true // Only allow starting exams that are in exam mode
     });
-
-    if (existingAttempt) {
-      if (existingAttempt.status === 'in-progress') {
-        logger.info('Resuming existing exam attempt');
-      } else {
-        logger.error('Student has already completed this exam');
-        res.status(400);
-        throw new Error('You have already attempted this exam');
-      }
+    
+    if (!exam) {
+      res.status(404);
+      throw new Error('Exam not found or not available');
     }
-
-    let examResponse = existingAttempt;
-    if (!examResponse) {
-      examResponse = await ExamResponse.create({
-        student: req.user._id,
-        exam: exam._id,
-        answers: {},
-        score: 0,
-        correctAnswers: 0,
-        totalQuestions: exam.totalQuestions,
-        status: 'in-progress',
-        resultsAvailable: false,
-        timeLimit: exam.timeLimit
-      });
+    
+    // Check if student has already attempted this exam
+    const existingResponse = await ExamResponse.findOne({
+      student: req.user._id,
+      exam: exam._id
+    });
+    
+    if (existingResponse) {
+      res.status(400);
+      throw new Error('You have already attempted this exam');
     }
-
-    try {
-      const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
-      
-      if (!response.data || !response.data.iv || !response.data.encryptedData) {
-        logger.error('Invalid IPFS data format:', response.data);
-        throw new Error('Invalid data format from IPFS');
-      }
-
-      const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
-      
-      if (!decryptedData || !decryptedData.questions) {
-        logger.error('Invalid decrypted data structure');
-        throw new Error('Invalid exam data structure');
-      }
-
-      if (!Array.isArray(decryptedData.questions)) {
-        logger.error('Questions is not an array:', typeof decryptedData.questions);
-        throw new Error('Invalid questions format');
-      }
-
-      const sanitizedQuestions = decryptedData.questions.map(q => ({
-        text: q.question,
-        options: q.options
-      }));
-
-      const examData = await ExamResponse.find({ exam: exam._id }).populate('student', 'name email');
-
-      res.json({
-        _id: exam._id,
-        examName: exam.examName,
-        timeLimit: exam.timeLimit,
-        totalQuestions: exam.totalQuestions,
-        questions: sanitizedQuestions,
-        examResponseId: examResponse._id,
-        examData
-      });
-
-    } catch (error) {
-      await ExamResponse.findByIdAndDelete(examResponse._id);
-      throw error;
-    }
+    
+    // Log the exam data structure for debugging
+    console.log("Exam data being sent to student:", JSON.stringify({
+      _id: exam._id,
+      examName: exam.examName,
+      timeLimit: exam.timeLimit,
+      ipfsHash: exam.ipfsHash,
+      questions: exam.questions.map(q => ({
+        text: q.questionText,
+        questionImage: q.questionImage, // Make sure this is included
+        options: q.options.map(opt => ({
+          text: opt.text,
+          image: opt.image // Make sure this is included
+        }))
+      }))
+    }, null, 2));
+    
+    // Return exam data with questions
+    res.json({
+      _id: exam._id,
+      examName: exam.examName,
+      timeLimit: exam.timeLimit,
+      ipfsHash: exam.ipfsHash,
+      questions: exam.questions.map(q => ({
+        text: q.questionText,
+        questionImage: q.questionImage, // Ensure this is included
+        options: q.options.map(opt => ({
+          text: opt.text,
+          image: opt.image // Ensure this is included
+        }))
+      }))
+    });
+    
   } catch (error) {
-    logger.error('Exam preparation error:', error);
-    res.status(500);
-    throw new Error('Failed to prepare exam');
+    console.error('Start exam error:', error);
+    res.status(res.statusCode === 200 ? 500 : res.statusCode);
+    throw new Error(error.message || 'Failed to start exam');
   }
 });
 
