@@ -19,6 +19,7 @@ import mongoSanitize from 'express-mongo-sanitize';
 import { createLogger } from './utils/logger.js';
 import cors from 'cors';
 import MongoStore from 'connect-mongo';
+import proxyRoutes from './routes/proxyRoutes.js';
 
 const logger = createLogger('server');
 dotenv.config();
@@ -106,6 +107,7 @@ const startServer = async () => {
     app.use('/api/admin', adminRoutes);
     app.use('/api/exams', examRoutes);
     app.use('/api/contact', contactRoutes);
+    app.use('/api/proxy', proxyRoutes);
 
     app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
