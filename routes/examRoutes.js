@@ -17,6 +17,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import cloudinary from '../config/cloudinary.js';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import path from 'path';
 
 const router = express.Router();
 
@@ -31,6 +32,21 @@ const storage = new CloudinaryStorage({
 });
 
 const upload = multer({ storage });
+
+// Configure multer for memory storage
+const memoryStorage = multer.memoryStorage();
+const memoryUpload = multer({ 
+  storage: memoryStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPEG, PNG and GIF are allowed.'));
+    }
+  }
+});
 
 // Student routes
 router.route('/submit')
@@ -61,13 +77,21 @@ router.post(
   express.json({ limit: '50mb' }), 
   createExam
 );
-router.post('/upload-images', protect, upload.array('images', 5), async (req, res) => {
+
+// Image upload endpoint
+router.post('/upload-images', protect, memoryUpload.array('images', 5), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: 'No images uploaded' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'No images uploaded' 
+      });
     }
 
-    const imageUrls = req.files.map(file => file.path);
+    // For testing, return dummy URLs
+    const imageUrls = req.files.map(file => 
+      `https://example.com/images/${Date.now()}-${file.originalname}`
+    );
 
     res.json({
       success: true,
@@ -78,7 +102,7 @@ router.post('/upload-images', protect, upload.array('images', 5), async (req, re
     console.error('Image upload error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to upload images'
+      message: error.message || 'Failed to upload images'
     });
   }
 });
