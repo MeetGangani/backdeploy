@@ -7,8 +7,7 @@ import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
 import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
-import { uploadToCloudinary } from '../utils/cloudinaryUtils.js';
-import cloudinary from '../utils/cloudinaryUtils.js';
+import { cloudinary } from '../utils/cloudinaryUtils.js';
 
 const logger = createLogger('examController');
 

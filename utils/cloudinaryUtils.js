@@ -24,4 +24,6 @@ export const uploadToCloudinary = (buffer) => {
     
     streamifier.createReadStream(buffer).pipe(uploadStream);
   });
-}; 
+};
+
+export { cloudinary }; 
