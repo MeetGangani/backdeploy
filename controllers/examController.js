@@ -501,7 +501,7 @@ const validateQuestions = (questions) => {
 // @desc    Upload exam images
 // @route   POST /api/exams/upload-images
 // @access  Institute Only
-const uploadImages = asyncHandler(async (req, res) => {
+const uploadExamImages = asyncHandler(async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       res.status(400);
@@ -538,5 +538,5 @@ export {
   getMyResults,
   getExamResults,
   createExam,
-  uploadImages
+  uploadExamImages
 };

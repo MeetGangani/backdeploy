@@ -15,7 +15,7 @@ import { protect, instituteOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ dest: 'uploads/' });
 
 // Student routes
 router.route('/submit')
@@ -46,6 +46,6 @@ router.post(
   express.json({ limit: '50mb' }), 
   createExam
 );
-router.post('/upload-images', protect, instituteOnly, upload.array('images', 10), uploadExamImages);
+router.post('/upload-images', protect, upload.array('images'), uploadExamImages);
 
 export default router; 
