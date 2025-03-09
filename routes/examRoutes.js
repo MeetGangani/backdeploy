@@ -88,10 +88,19 @@ router.post('/upload-images', protect, memoryUpload.array('images', 5), async (r
       });
     }
 
-    // For testing, return dummy URLs
-    const imageUrls = req.files.map(file => 
-      `https://example.com/images/${Date.now()}-${file.originalname}`
-    );
+    const uploadPromises = req.files.map(async (file) => {
+      try {
+        const result = await cloudinary.uploader.upload_stream({
+          folder: 'nexus-edu-exam-images',
+        }).end(file.buffer);
+        return result.secure_url;
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        throw error;
+      }
+    });
+
+    const imageUrls = await Promise.all(uploadPromises);
 
     res.json({
       success: true,
