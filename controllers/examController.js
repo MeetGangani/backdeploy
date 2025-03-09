@@ -86,6 +86,16 @@ const startExam = asyncHandler(async (req, res) => {
       throw new Error('You have already attempted this exam');
     }
     
+    // Create a new exam response record
+    const examResponse = new ExamResponse({
+      student: req.user._id,
+      exam: exam._id,
+      status: 'in-progress',
+      startedAt: new Date()
+    });
+    
+    await examResponse.save();
+    
     // Log the exam data structure for debugging
     console.log("Exam data being sent to student:", JSON.stringify({
       _id: exam._id,
@@ -93,11 +103,11 @@ const startExam = asyncHandler(async (req, res) => {
       timeLimit: exam.timeLimit,
       ipfsHash: exam.ipfsHash,
       questions: exam.questions.map(q => ({
-        text: q.questionText,
-        questionImage: q.questionImage, // Make sure this is included
+        text: q.questionText || "", // Ensure text is never undefined
+        questionImage: q.questionImage, 
         options: q.options.map(opt => ({
-          text: opt.text,
-          image: opt.image // Make sure this is included
+          text: opt.text || "", // Ensure option text is never undefined
+          image: opt.image
         }))
       }))
     }, null, 2));
@@ -109,11 +119,11 @@ const startExam = asyncHandler(async (req, res) => {
       timeLimit: exam.timeLimit,
       ipfsHash: exam.ipfsHash,
       questions: exam.questions.map(q => ({
-        text: q.questionText,
-        questionImage: q.questionImage, // Ensure this is included
+        text: q.questionText || "", // Ensure text is never undefined
+        questionImage: q.questionImage,
         options: q.options.map(opt => ({
-          text: opt.text,
-          image: opt.image // Ensure this is included
+          text: opt.text || "", // Ensure option text is never undefined
+          image: opt.image
         }))
       }))
     });
