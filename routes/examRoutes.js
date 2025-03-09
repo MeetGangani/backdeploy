@@ -15,9 +15,22 @@ import { protect, instituteOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
 import axios from 'axios';
 import FormData from 'form-data';
+import cloudinary from '../config/cloudinary.js';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+
+// Configure Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'exam-images',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif'],
+    transformation: [{ width: 1000, height: 1000, crop: 'limit' }]
+  }
+});
+
+const upload = multer({ storage });
 
 // Student routes
 router.route('/submit')
@@ -48,7 +61,27 @@ router.post(
   express.json({ limit: '50mb' }), 
   createExam
 );
-router.post('/upload-images', protect, upload.array('images'), uploadExamImages);
+router.post('/upload-images', protect, upload.array('images', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No images uploaded' });
+    }
+
+    const imageUrls = req.files.map(file => file.path);
+
+    res.json({
+      success: true,
+      imageUrls
+    });
+
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to upload images'
+    });
+  }
+});
 
 // Excel upload endpoint
 router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => {
