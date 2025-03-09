@@ -78,35 +78,17 @@ router.post(
   createExam
 );
 
-// Image upload endpoint
-router.post('/upload-images', protect, memoryUpload.array('images', 5), async (req, res) => {
+// Image upload endpoint - simplified version
+router.post('/upload-images', protect, (req, res) => {
   try {
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'No images uploaded' 
-      });
-    }
-
-    const uploadPromises = req.files.map(async (file) => {
-      try {
-        const result = await cloudinary.uploader.upload_stream({
-          folder: 'nexus-edu-exam-images',
-        }).end(file.buffer);
-        return result.secure_url;
-      } catch (error) {
-        console.error('Cloudinary upload error:', error);
-        throw error;
-      }
-    });
-
-    const imageUrls = await Promise.all(uploadPromises);
-
+    // For testing purposes, return a dummy URL
+    // This bypasses actual file upload to debug the flow
+    const dummyImageUrl = 'https://via.placeholder.com/500x300?text=Test+Image';
+    
     res.json({
       success: true,
-      imageUrls
+      imageUrls: [dummyImageUrl]
     });
-
   } catch (error) {
     console.error('Image upload error:', error);
     res.status(500).json({
