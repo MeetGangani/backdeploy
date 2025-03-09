@@ -13,9 +13,11 @@ import {
 } from '../controllers/examController.js';
 import { protect, instituteOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
+import axios from 'axios';
+import FormData from 'form-data';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Student routes
 router.route('/submit')
@@ -48,26 +50,60 @@ router.post(
 );
 router.post('/upload-images', protect, upload.array('images'), uploadExamImages);
 
-// Excel upload endpoint - keeping it simple
+// Excel upload endpoint
 router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'No file uploaded' 
+      });
     }
 
-    // Process the file and return questions
-    const questions = []; // Your question processing logic here
-    
+    // Create form data for the Excel processor service
+    const formData = new FormData();
+    formData.append('file', req.file.buffer, {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype
+    });
+
+    // Forward the Excel file to the processor service
+    const processorResponse = await axios.post(
+      'https://excelprocessor.onrender.com',
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity
+      }
+    );
+
+    // Validate the processor response
+    const processedData = processorResponse.data;
+    if (!processedData.questions || !Array.isArray(processedData.questions)) {
+      throw new Error('Invalid response from Excel processor');
+    }
+
+    // Validate each question
+    processedData.questions.forEach((q, index) => {
+      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || !q.correctAnswer) {
+        throw new Error(`Invalid question format at index ${index}`);
+      }
+    });
+
+    // Return the processed questions
     res.json({ 
       success: true,
-      questions 
+      questions: processedData.questions 
     });
 
   } catch (error) {
     console.error('Excel processing error:', error);
-    res.status(500).json({ 
+    res.status(error.response?.status || 500).json({ 
       success: false,
-      message: 'Failed to process Excel file' 
+      message: error.message || 'Failed to process Excel file' 
     });
   }
 });
