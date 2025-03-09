@@ -8,6 +8,7 @@ import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
 import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
 import { uploadToCloudinary } from '../utils/cloudinaryUtils.js';
+import cloudinary from '../utils/cloudinaryUtils.js';
 
 const logger = createLogger('examController');
 
@@ -501,30 +502,29 @@ const validateQuestions = (questions) => {
 // @desc    Upload exam images
 // @route   POST /api/exams/upload-images
 // @access  Institute Only
-const uploadExamImages = asyncHandler(async (req, res) => {
+const uploadImages = asyncHandler(async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       res.status(400);
       throw new Error('No images provided');
     }
 
-    logger.info(`Uploading ${req.files.length} images`);
-    
-    // Process each file and upload to Cloudinary
-    const uploadPromises = req.files.map(file => {
-      return uploadToCloudinary(file.buffer);
-    });
+    console.log('[INFO] [examController] Uploading', req.files.length, 'images');
 
-    const imageUrls = await Promise.all(uploadPromises);
-    
-    logger.info('Images uploaded successfully:', imageUrls);
+    const uploadPromises = req.files.map(file => 
+      cloudinary.uploader.upload(file.path, {
+        folder: 'nexus-edu-exam-images'
+      })
+    );
 
-    res.status(200).json({
-      message: 'Images uploaded successfully',
-      imageUrls: imageUrls
-    });
+    const results = await Promise.all(uploadPromises);
+    const imageUrls = results.map(result => result.secure_url);
+
+    console.log('[INFO] [examController] Images uploaded successfully:', imageUrls);
+
+    res.json({ imageUrls });
   } catch (error) {
-    logger.error('Image upload error:', error);
+    console.error('[ERROR] [examController] Image upload error:', error);
     res.status(500);
     throw new Error('Failed to upload images: ' + error.message);
   }
@@ -539,5 +539,5 @@ export {
   getMyResults,
   getExamResults,
   createExam,
-  uploadExamImages
+  uploadImages
 };
