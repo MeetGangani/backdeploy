@@ -5,9 +5,19 @@ const questionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  options: [{
+  questionImage: {
     type: String,
-    required: true
+    default: null
+  },
+  options: [{
+    text: {
+      type: String,
+      required: true
+    },
+    image: {
+      type: String,
+      default: null
+    }
   }],
   correctAnswer: {
     type: Number,

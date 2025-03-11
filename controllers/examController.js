@@ -128,7 +128,11 @@ const startExam = asyncHandler(async (req, res) => {
 
       const sanitizedQuestions = decryptedData.questions.map(q => ({
         text: q.question,
-        options: q.options
+        questionImage: q.questionImage || null,
+        options: q.options.map(opt => ({
+          text: typeof opt === 'string' ? opt : opt.text,
+          image: typeof opt === 'string' ? null : opt.image
+        }))
       }));
 
       const examData = await ExamResponse.find({ exam: exam._id }).populate('student', 'name email');
@@ -498,32 +502,25 @@ const validateQuestions = (questions) => {
   return true;
 };
 
-// @desc    Upload exam images
+// @desc    Upload images for exam questions/options
 // @route   POST /api/exams/upload-images
-// @access  Institute Only
+// @access  Private
 const uploadExamImages = asyncHandler(async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       res.status(400);
-      throw new Error('No images provided');
+      throw new Error('No images uploaded');
     }
 
-    console.log('[INFO] [examController] Uploading', req.files.length, 'images');
+    const uploadPromises = req.files.map(file => uploadToCloudinary(file.buffer));
+    const imageUrls = await Promise.all(uploadPromises);
 
-    const uploadPromises = req.files.map(file => 
-      cloudinary.uploader.upload(file.path, {
-        folder: 'nexus-edu-exam-images'
-      })
-    );
-
-    const results = await Promise.all(uploadPromises);
-    const imageUrls = results.map(result => result.secure_url);
-
-    console.log('[INFO] [examController] Images uploaded successfully:', imageUrls);
-
-    res.json({ imageUrls });
+    res.json({
+      imageUrls,
+      message: 'Images uploaded successfully'
+    });
   } catch (error) {
-    console.error('[ERROR] [examController] Image upload error:', error);
+    logger.error('Image upload error:', error);
     res.status(500);
     throw new Error('Failed to upload images: ' + error.message);
   }
