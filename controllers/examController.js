@@ -8,6 +8,7 @@ import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
 import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
 import { cloudinary } from '../utils/cloudinaryUtils.js';
+import { uploadToCloudinary } from '../utils/cloudinaryUpload.js';
 
 const logger = createLogger('examController');
 
@@ -505,26 +506,31 @@ const validateQuestions = (questions) => {
 // @desc    Upload images for exam questions/options
 // @route   POST /api/exams/upload-images
 // @access  Private
-const uploadExamImages = asyncHandler(async (req, res) => {
+const uploadExamImages = async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
-      res.status(400);
-      throw new Error('No images uploaded');
+      return res.status(400).json({
+        success: false,
+        error: 'No files uploaded'
+      });
     }
 
+    // Upload all images to Cloudinary
     const uploadPromises = req.files.map(file => uploadToCloudinary(file.buffer));
     const imageUrls = await Promise.all(uploadPromises);
 
-    res.json({
-      imageUrls,
-      message: 'Images uploaded successfully'
+    return res.status(200).json({
+      success: true,
+      imageUrls
     });
   } catch (error) {
-    logger.error('Image upload error:', error);
-    res.status(500);
-    throw new Error('Failed to upload images: ' + error.message);
+    console.error('Error in uploadExamImages:', error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Error uploading images'
+    });
   }
-});
+};
 
 export {
   getAvailableExams,
