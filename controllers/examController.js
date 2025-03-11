@@ -1,12 +1,12 @@
 import asyncHandler from 'express-async-handler';
 import FileRequest from '../models/fileRequestModel.js';
 import ExamResponse from '../models/examResponseModel.js';
-import { decryptFromIPFS } from '../utils/encryptionUtils.js';
+import { decryptFromIPFS, generateEncryptionKey } from '../utils/encryptionUtils.js';
 import sendEmail from '../utils/emailUtils.js';
 import { examResultTemplate } from '../utils/emailTemplates.js';
 import axios from 'axios';
 import { createLogger } from '../utils/logger.js';
-import { encryptFile, generateEncryptionKey } from '../utils/encryptionUtils.js';
+import { encryptFile } from '../utils/encryptionUtils.js';
 import { cloudinary } from '../utils/cloudinaryUtils.js';
 import { uploadToCloudinary } from '../utils/cloudinaryUpload.js';
 
@@ -428,71 +428,47 @@ const createExam = asyncHandler(async (req, res) => {
       });
     }
 
-    // Validate each question
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (!q.questionText && !q.questionImage) {
-        return res.status(400).json({
-          success: false,
-          error: `Question ${i + 1} must have either text or an image`
-        });
-      }
-
-      if (!q.options || !Array.isArray(q.options) || q.options.length < 2) {
-        return res.status(400).json({
-          success: false,
-          error: `Question ${i + 1} must have at least 2 options`
-        });
-      }
-
-      // Validate options
-      for (let j = 0; j < q.options.length; j++) {
-        const opt = q.options[j];
-        if (!opt.text && !opt.image) {
-          return res.status(400).json({
-            success: false,
-            error: `Option ${j + 1} in question ${i + 1} must have either text or an image`
-          });
-        }
-      }
-
-      // Validate correct answers based on question type
-      if (q.questionType === 'single' && (typeof q.correctOption !== 'number' || q.correctOption < 0 || q.correctOption >= q.options.length)) {
-        return res.status(400).json({
-          success: false,
-          error: `Question ${i + 1} must have a valid correct option`
-        });
-      }
-
-      if (q.questionType === 'multiple' && (!Array.isArray(q.correctOptions) || q.correctOptions.length === 0)) {
-        return res.status(400).json({
-          success: false,
-          error: `Question ${i + 1} must have at least one correct option`
-        });
-      }
-    }
-    
-    // Create a new exam document
-    const newExam = new FileRequest({
+    // Generate encryption key and encrypt the exam data
+    const encryptionKey = generateEncryptionKey();
+    const examData = {
       examName,
       description,
       subject,
-      timeLimit: timeLimit || 60,
-      passingPercentage: passingPercentage || 60,
-      totalQuestions: questions.length,
-      questions: questions.map(q => ({
-        questionText: q.questionText || '',
+      questions: questions.map((q, index) => ({
+        question: q.questionText || `Question ${index + 1}`,
         questionImage: q.questionImage || null,
-        questionType: q.questionType || 'single',
         options: q.options.map(opt => ({
           text: opt.text || '',
           image: opt.image || null
         })),
-        correctOption: q.questionType === 'single' ? q.correctOption : -1,
-        correctOptions: q.questionType === 'multiple' ? q.correctOptions : []
+        correctAnswer: q.questionType === 'single' ? q.correctOption + 1 : q.correctOptions[0] + 1 // Convert to 1-based index
+      }))
+    };
+
+    // Encrypt the exam data
+    const encryptedData = JSON.stringify(examData);
+
+    // Create a new exam document with all required fields
+    const newExam = new FileRequest({
+      examName,
+      description: description || examName,
+      subject,
+      timeLimit: timeLimit || 60,
+      passingPercentage: passingPercentage || 60,
+      totalQuestions: questions.length,
+      questions: questions.map((q, index) => ({
+        question: q.questionText || `Question ${index + 1}`,
+        questionImage: q.questionImage || null,
+        options: q.options.map(opt => ({
+          text: opt.text || '',
+          image: opt.image || null
+        })),
+        correctAnswer: q.questionType === 'single' ? q.correctOption + 1 : q.correctOptions[0] + 1 // Convert to 1-based index
       })),
-      createdBy: req.user._id,
-      institute: req.user._id, // Using user ID as institute ID
+      encryptedData,
+      encryptionKey,
+      institute: req.user._id,
+      submittedBy: req.user._id,
       status: 'approved', // Auto-approve for institute-created exams
       examMode: false // Default to inactive
     });
