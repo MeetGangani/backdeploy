@@ -19,7 +19,7 @@ const uploadExcel = asyncHandler(async (req, res) => {
     });
 
     const pythonServiceResponse = await axios.post(
-      'https://your-render-service-url/api/process-excel',
+      'http://0.0.0.0:10000/api/process-excel',
       formData,
       {
         headers: {
