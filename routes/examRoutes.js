@@ -64,10 +64,10 @@ router.post('/exams/start', startExam);
 
 // New routes for exam creation
 router.post(
-  '/create-binary', 
-  protect, 
-  instituteOnly, 
-  express.json({ limit: '50mb' }), 
+  '/create-binary',
+  protect,
+  instituteOnly,
+  express.json({ limit: '50mb' }),
   createExam
 );
 

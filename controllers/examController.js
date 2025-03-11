@@ -413,10 +413,63 @@ const createExam = asyncHandler(async (req, res) => {
   try {
     const { examName, description, subject, timeLimit, passingPercentage, questions } = req.body;
     
-    // Basic validation
-    if (!examName || !questions || !Array.isArray(questions)) {
-      res.status(400);
-      throw new Error('Invalid exam data format');
+    // Enhanced validation
+    if (!examName || !subject) {
+      return res.status(400).json({
+        success: false,
+        error: 'Exam name and subject are required'
+      });
+    }
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one question is required'
+      });
+    }
+
+    // Validate each question
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.questionText && !q.questionImage) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have either text or an image`
+        });
+      }
+
+      if (!q.options || !Array.isArray(q.options) || q.options.length < 2) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have at least 2 options`
+        });
+      }
+
+      // Validate options
+      for (let j = 0; j < q.options.length; j++) {
+        const opt = q.options[j];
+        if (!opt.text && !opt.image) {
+          return res.status(400).json({
+            success: false,
+            error: `Option ${j + 1} in question ${i + 1} must have either text or an image`
+          });
+        }
+      }
+
+      // Validate correct answers based on question type
+      if (q.questionType === 'single' && (typeof q.correctOption !== 'number' || q.correctOption < 0 || q.correctOption >= q.options.length)) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have a valid correct option`
+        });
+      }
+
+      if (q.questionType === 'multiple' && (!Array.isArray(q.correctOptions) || q.correctOptions.length === 0)) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have at least one correct option`
+        });
+      }
     }
     
     // Create a new exam document
@@ -426,19 +479,20 @@ const createExam = asyncHandler(async (req, res) => {
       subject,
       timeLimit: timeLimit || 60,
       passingPercentage: passingPercentage || 60,
+      totalQuestions: questions.length,
       questions: questions.map(q => ({
-        questionText: q.questionText,
-        questionImage: q.questionImage,
+        questionText: q.questionText || '',
+        questionImage: q.questionImage || null,
         questionType: q.questionType || 'single',
         options: q.options.map(opt => ({
-          text: opt.text,
-          image: opt.image
+          text: opt.text || '',
+          image: opt.image || null
         })),
         correctOption: q.questionType === 'single' ? q.correctOption : -1,
         correctOptions: q.questionType === 'multiple' ? q.correctOptions : []
       })),
       createdBy: req.user._id,
-      institute: req.user.institute,
+      institute: req.user._id, // Using user ID as institute ID
       status: 'approved', // Auto-approve for institute-created exams
       examMode: false // Default to inactive
     });
@@ -446,15 +500,16 @@ const createExam = asyncHandler(async (req, res) => {
     // Save the exam
     const savedExam = await newExam.save();
     
-    res.status(201).json({
+    return res.status(201).json({
+      success: true,
       message: 'Exam created successfully',
       examId: savedExam._id
     });
   } catch (error) {
     console.error('Error creating exam:', error);
-    res.status(500).json({
-      message: 'Failed to create exam',
-      error: error.message
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to create exam'
     });
   }
 });
