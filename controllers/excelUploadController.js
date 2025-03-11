@@ -19,7 +19,7 @@ const uploadExcel = asyncHandler(async (req, res) => {
     });
 
     const pythonServiceResponse = await axios.post(
-      'http://0.0.0.0:10000/api/process-excel',
+      'https://wandering-resonance-9549.ploomber.app/api/process-excel',
       formData,
       {
         headers: {
