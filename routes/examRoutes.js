@@ -17,7 +17,12 @@ import axios from 'axios';
 import FormData from 'form-data';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
 
 // Student routes
 router.route('/submit')
@@ -48,7 +53,18 @@ router.post(
   express.json({ limit: '50mb' }), 
   createExam
 );
-router.post('/upload-images', protect, upload.array('images'), uploadExamImages);
+
+// Configure image upload route with proper headers
+router.post('/upload-images', 
+  protect, 
+  (req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Credentials', true);
+    next();
+  },
+  upload.array('images', 10), // Allow up to 10 images
+  uploadExamImages
+);
 
 // Excel upload endpoint
 router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => {

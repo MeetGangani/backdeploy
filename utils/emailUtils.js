@@ -5,7 +5,7 @@ import { createLogger } from './logger.js';
 dotenv.config();
 const logger = createLogger('emailUtils');
 
-// Create a transporter using SMTP
+// Create a transporter using SMTP 
 const createTransporter = () => {
   return nodemailer.createTransport({
     service: 'gmail',

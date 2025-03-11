@@ -44,16 +44,29 @@ const startServer = async () => {
       origin: [
         'https://nexusedu-jade.vercel.app',
         'http://localhost:3000',
-        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app',
-        'https://nexusedu-jade.vercel.app'
+        'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
       ],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
-      exposedHeaders: ['Set-Cookie']
+      allowedHeaders: [
+        'Origin',
+        'X-Requested-With',
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'X-CSRF-Token',
+        'X-Auth-Token'
+      ],
+      exposedHeaders: ['Set-Cookie'],
+      optionsSuccessStatus: 200
     };
     
+    // Apply CORS middleware before other middleware
     app.use(cors(corsOptions));
+    
+    // Enable pre-flight requests for all routes
+    app.options('*', cors(corsOptions));
+
     app.use(express.json());
     app.use(express.urlencoded({ extended: true }));
 
