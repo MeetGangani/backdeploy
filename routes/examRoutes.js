@@ -24,6 +24,23 @@ const upload = multer({
   }
 });
 
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        error: 'File size is too large. Maximum size is 5MB.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      error: err.message
+    });
+  }
+  next(err);
+};
+
 // Student routes
 router.route('/submit')
   .post(protect, submitExam);
@@ -54,16 +71,47 @@ router.post(
   createExam
 );
 
-// Configure image upload route with proper headers
+// Configure image upload route with proper headers and error handling
 router.post('/upload-images', 
-  protect, 
+  protect,
   (req, res, next) => {
+    // Set CORS headers
     res.header('Access-Control-Allow-Origin', req.headers.origin);
-    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+    );
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+      return res.status(200).send();
+    }
     next();
   },
   upload.array('images', 10), // Allow up to 10 images
-  uploadExamImages
+  handleMulterError, // Add error handling middleware
+  async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'No files uploaded'
+        });
+      }
+
+      // Process the uploaded files
+      const result = await uploadExamImages(req, res);
+      return result;
+    } catch (error) {
+      console.error('Error in image upload:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Error uploading images'
+      });
+    }
+  }
 );
 
 // Excel upload endpoint

@@ -47,7 +47,7 @@ const startServer = async () => {
         'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
       ],
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
       allowedHeaders: [
         'Origin',
         'X-Requested-With',
@@ -55,10 +55,14 @@ const startServer = async () => {
         'Accept',
         'Authorization',
         'X-CSRF-Token',
-        'X-Auth-Token'
+        'X-Auth-Token',
+        'Access-Control-Allow-Origin',
+        'Access-Control-Allow-Methods',
+        'Access-Control-Allow-Headers'
       ],
-      exposedHeaders: ['Set-Cookie'],
-      optionsSuccessStatus: 200
+      exposedHeaders: ['Set-Cookie', 'Authorization'],
+      optionsSuccessStatus: 200,
+      maxAge: 86400 // 24 hours
     };
     
     // Apply CORS middleware before other middleware
@@ -67,8 +71,26 @@ const startServer = async () => {
     // Enable pre-flight requests for all routes
     app.options('*', cors(corsOptions));
 
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
+    // Add CORS debugging middleware
+    app.use((req, res, next) => {
+      logger.debug(`${req.method} ${req.path}`);
+      logger.debug('Request Headers:', req.headers);
+      
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        logger.debug('Handling OPTIONS request');
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+        res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,PATCH,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+        return res.status(200).send();
+      }
+      
+      next();
+    });
+
+    // Increase payload limit for file uploads
+    app.use(express.json({ limit: '50mb' }));
+    app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
     if (process.env.NODE_ENV === 'production') {
       app.set('trust proxy', 1);
