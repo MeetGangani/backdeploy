@@ -25,7 +25,7 @@ const logger = createLogger('server');
 dotenv.config();
 
 const app = express();
-
+ 
 const startServer = async () => {
   try {
     await connectDB();
