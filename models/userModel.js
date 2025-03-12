@@ -55,20 +55,32 @@ const userSchema = mongoose.Schema(
         values: ['male', 'female', 'other'],
         message: '{VALUE} is not a valid gender'
       },
-      required: function() { return this.userType === 'student'; }
+      required: function() { 
+        // Only required if userType is student and it's not a new registration
+        return this.userType === 'student' && !this.isNew;
+      }
     },
     dateOfBirth: {
       type: Date,
-      required: function() { return this.userType === 'student'; }
+      required: function() { 
+        // Only required if userType is student and it's not a new registration
+        return this.userType === 'student' && !this.isNew;
+      }
     },
     guardianInfo: {
       name: {
         type: String,
-        required: function() { return this.userType === 'student'; }
+        required: function() { 
+          // Only required if userType is student and it's not a new registration
+          return this.userType === 'student' && !this.isNew;
+        }
       },
       contactNumber: {
         type: String,
-        required: function() { return this.userType === 'student'; },
+        required: function() { 
+          // Only required if userType is student and it's not a new registration
+          return this.userType === 'student' && !this.isNew;
+        },
         validate: {
           validator: function(v) {
             return /^\+?[\d\s-]{10,}$/.test(v);
@@ -78,7 +90,10 @@ const userSchema = mongoose.Schema(
       },
       relation: {
         type: String,
-        required: function() { return this.userType === 'student'; }
+        required: function() { 
+          // Only required if userType is student and it's not a new registration
+          return this.userType === 'student' && !this.isNew;
+        }
       }
     },
     // Institute specific fields
