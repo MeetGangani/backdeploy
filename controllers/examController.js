@@ -469,7 +469,7 @@ const createExam = asyncHandler(async (req, res) => {
       encryptionKey,
       institute: req.user._id,
       submittedBy: req.user._id,
-      status: 'approved', // Auto-approve for institute-created exams
+      status: 'pending', // Changed from 'approved' to 'pending' to require admin approval
       examMode: false // Default to inactive
     });
     
@@ -478,7 +478,7 @@ const createExam = asyncHandler(async (req, res) => {
     
     return res.status(201).json({
       success: true,
-      message: 'Exam created successfully',
+      message: 'Exam submitted successfully and is pending admin approval',
       examId: savedExam._id
     });
   } catch (error) {
