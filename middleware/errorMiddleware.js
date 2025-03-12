@@ -7,11 +7,22 @@ const notFound = (req, res, next) => {
 const errorHandler = (err, req, res, next) => {
   // Add CORS headers for error responses
   if (process.env.NODE_ENV === 'production') {
-    res.header(
-      'Access-Control-Allow-Origin', 
+    // Get the origin from the request headers
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+      'https://nexusedu-jade.vercel.app',
       'https://nexusedu-meetgangani56-gmailcoms-projects.vercel.app'
-    );
+    ];
+    
+    // Set the Access-Control-Allow-Origin header if the origin is allowed
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+  } else {
+    // In development, allow any origin
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
   }
+  
   res.header('Access-Control-Allow-Credentials', 'true');
 
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
