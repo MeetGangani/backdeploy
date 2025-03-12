@@ -128,14 +128,27 @@ const startExam = asyncHandler(async (req, res) => {
       }
 
       // Format questions for the frontend
-      const sanitizedQuestions = decryptedData.questions.map(q => ({
-        text: q.question,
-        questionImage: q.questionImage || null,
-        options: q.options.map(opt => 
-          // Return just the text string instead of an object
-          typeof opt === 'string' ? opt : (opt.text || '')
-        )
-      }));
+      const sanitizedQuestions = decryptedData.questions.map(q => {
+        // Process options to handle both text and images
+        const processedOptions = q.options.map(opt => {
+          if (typeof opt === 'string') {
+            return opt;
+          }
+          
+          // If option has an image, format it as a special string that the frontend can parse
+          if (opt.image) {
+            return `${opt.text || ''}::img::${opt.image}`;
+          }
+          
+          return opt.text || '';
+        });
+        
+        return {
+          text: q.question,
+          questionImage: q.questionImage || null,
+          options: processedOptions
+        };
+      });
 
       const examData = await ExamResponse.find({ exam: exam._id }).populate('student', 'name email');
 
