@@ -14,6 +14,9 @@ const generateToken = (res, userId) => {
   };
 
   res.cookie('jwt', token, cookieOptions);
+  
+  // Return the token so it can be used for session tracking
+  return token;
 };
 
 export default generateToken;

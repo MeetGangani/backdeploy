@@ -10,6 +10,7 @@ import { welcomeEmailTemplate, loginNotificationTemplate, instituteGuidelinesTem
 import sendEmail from '../utils/emailUtils.js';
 import * as UAParser from 'ua-parser-js';
 import axios from 'axios';
+import Session from '../models/sessionModel.js';
 
 dotenv.config();
 
@@ -144,12 +145,26 @@ const getLocationInfo = async (ip) => {
 // @route   POST /api/users/auth
 // @access  Public
 const authUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, forceLogin } = req.body;
 
   try {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
+      // For students, check if there's already an active session
+      if (user.userType === 'student' && !forceLogin) {
+        const activeSessions = await Session.find({
+          userId: user._id,
+          isActive: true
+        });
+        
+        if (activeSessions.length > 0) {
+          res.status(401);
+          throw new Error('You are already logged in on another device. Please log out from there first.');
+        }
+      }
+      
+      // For institutes and admins, send login notification
       if (user.userType === 'institute' || user.userType === 'admin') {
         try {
           const device = getDeviceInfo(req.headers['user-agent']);
@@ -181,7 +196,31 @@ const authUser = asyncHandler(async (req, res) => {
         }
       }
 
-      generateToken(res, user._id);
+      // If forceLogin is true, deactivate all other sessions
+      if (forceLogin) {
+        await Session.updateMany(
+          { userId: user._id, isActive: true },
+          { isActive: false }
+        );
+      }
+
+      // Generate token
+      const token = generateToken(res, user._id);
+      
+      // For students, create a session record
+      if (user.userType === 'student') {
+        const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+        const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || 
+                  req.connection.remoteAddress;
+        
+        await Session.create({
+          userId: user._id,
+          token,
+          deviceInfo,
+          ipAddress: ip,
+          isActive: true
+        });
+      }
 
       res.json({
         _id: user._id,
@@ -361,6 +400,29 @@ const registerUser = asyncHandler(async (req, res) => {
 // @access  Public
 const logoutUser = asyncHandler(async (req, res) => {
   try {
+    const token = req.cookies.jwt;
+    
+    // If there's a token, deactivate the session
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Deactivate the session
+        await Session.updateMany(
+          { 
+            userId: decoded.userId,
+            token,
+            isActive: true
+          },
+          { 
+            isActive: false
+          }
+        );
+      } catch (tokenError) {
+        console.error('Token verification error during logout:', tokenError);
+      }
+    }
+    
     // Clear the JWT cookie
     res.cookie('jwt', '', {
       httpOnly: true,
@@ -368,7 +430,6 @@ const logoutUser = asyncHandler(async (req, res) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       path: '/'
-    
     });
 
     // Clear session if it exists
@@ -479,6 +540,43 @@ const checkAuth = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Force logout from other devices
+// @route   POST /api/users/force-logout-others
+// @access  Private
+const forceLogoutOtherDevices = asyncHandler(async (req, res) => {
+  try {
+    const token = req.cookies.jwt;
+    
+    if (!token) {
+      res.status(401);
+      throw new Error('Not authorized, no token');
+    }
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Keep only the current session active
+    await Session.updateMany(
+      { 
+        userId: decoded.userId,
+        token: { $ne: token },
+        isActive: true
+      },
+      { 
+        isActive: false
+      }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Logged out from all other devices'
+    });
+  } catch (error) {
+    console.error('Force logout error:', error);
+    res.status(500);
+    throw new Error('Error during force logout');
+  }
+});
+
 export {
   authUser,
   registerUser,
@@ -490,4 +588,5 @@ export {
   checkAuth,
   sendOTP,
   verifyOTP,
+  forceLogoutOtherDevices,
 };

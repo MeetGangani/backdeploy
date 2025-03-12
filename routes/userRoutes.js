@@ -10,6 +10,7 @@ import {
   checkAuth,
   sendOTP,
   verifyOTP,
+  forceLogoutOtherDevices,
 } from '../controllers/userController.js';
 import { protect, adminOnly, instituteOnly } from '../middleware/authMiddleware.js';
 import passport from 'passport';
@@ -21,6 +22,7 @@ router.post('/verify-otp', verifyOTP);
 router.post('/', registerUser);
 router.post('/auth', authUser);
 router.post('/logout', logoutUser);
+router.post('/force-logout-others', protect, forceLogoutOtherDevices);
 router
   .route('/profile')
   .get(protect, getUserProfile)
