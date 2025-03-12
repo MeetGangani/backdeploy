@@ -127,13 +127,14 @@ const startExam = asyncHandler(async (req, res) => {
         throw new Error('Invalid questions format');
       }
 
+      // Format questions for the frontend
       const sanitizedQuestions = decryptedData.questions.map(q => ({
         text: q.question,
         questionImage: q.questionImage || null,
-        options: q.options.map(opt => ({
-          text: typeof opt === 'string' ? opt : opt.text,
-          image: typeof opt === 'string' ? null : opt.image
-        }))
+        options: q.options.map(opt => 
+          // Return just the text string instead of an object
+          typeof opt === 'string' ? opt : (opt.text || '')
+        )
       }));
 
       const examData = await ExamResponse.find({ exam: exam._id }).populate('student', 'name email');
