@@ -148,9 +148,36 @@ const authUser = asyncHandler(async (req, res) => {
   const { email, password, forceLogin } = req.body;
 
   try {
+    // Check if email is provided
+    if (!email) {
+      res.status(400);
+      throw new Error('Email address is required');
+    }
+
+    // Check if password is provided
+    if (!password) {
+      res.status(400);
+      throw new Error('Password is required');
+    }
+
+    // Find the user by email
     const user = await User.findOne({ email });
 
-    if (user && (await user.matchPassword(password))) {
+    // If user doesn't exist
+    if (!user) {
+      res.status(401);
+      throw new Error('Invalid email or password');
+    }
+
+    // Check if password matches
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      res.status(401);
+      throw new Error('Invalid email or password');
+    }
+
+    // If user exists and password matches
+    if (user && isMatch) {
       // For students, check if there's already an active session
       if (user.userType === 'student' && !forceLogin) {
         const activeSessions = await Session.find({
@@ -159,8 +186,12 @@ const authUser = asyncHandler(async (req, res) => {
         });
         
         if (activeSessions.length > 0) {
+          // Get device info from the active session
+          const deviceInfo = activeSessions[0].deviceInfo || 'another device';
+          const deviceType = deviceInfo.includes('Mobile') ? 'mobile device' : 'computer';
+          
           res.status(401);
-          throw new Error('You are already logged in on another device. Please log out from there first.');
+          throw new Error(`You are already logged in on another ${deviceType}. Please log out from there first or use the option to log out other sessions.`);
         }
       }
       
@@ -198,10 +229,12 @@ const authUser = asyncHandler(async (req, res) => {
 
       // If forceLogin is true, deactivate all other sessions
       if (forceLogin) {
-        await Session.updateMany(
+        const deactivatedCount = await Session.updateMany(
           { userId: user._id, isActive: true },
           { isActive: false }
         );
+        
+        console.log(`Deactivated ${deactivatedCount.modifiedCount} active sessions for user ${user._id}`);
       }
 
       // Generate token
@@ -220,7 +253,13 @@ const authUser = asyncHandler(async (req, res) => {
           ipAddress: ip,
           isActive: true
         });
+        
+        console.log(`Created new session for student ${user._id} on device: ${deviceInfo.substring(0, 50)}...`);
       }
+
+      // Update last login time
+      user.lastLogin = new Date();
+      await user.save();
 
       res.json({
         _id: user._id,
@@ -228,13 +267,11 @@ const authUser = asyncHandler(async (req, res) => {
         email: user.email,
         userType: user.userType,
       });
-    } else {
-      res.status(401);
-      throw new Error('Invalid email or password');
     }
   } catch (error) {
+    console.error('Login error:', error.message);
     res.status(error.status || 500);
-    throw new Error(error.message || 'Login failed');
+    throw new Error(error.message || 'Login failed. Please try again later.');
   }
 });
 
@@ -401,23 +438,49 @@ const registerUser = asyncHandler(async (req, res) => {
 const logoutUser = asyncHandler(async (req, res) => {
   try {
     const token = req.cookies.jwt;
+    let sessionInfo = null;
     
     // If there's a token, deactivate the session
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Deactivate the session
-        await Session.updateMany(
-          { 
-            userId: decoded.userId,
-            token,
-            isActive: true
-          },
-          { 
-            isActive: false
-          }
-        );
+        // Get user info for the response
+        const user = await User.findById(decoded.userId).select('name userType');
+        
+        // Find and deactivate the session
+        const session = await Session.findOne({
+          userId: decoded.userId,
+          token,
+          isActive: true
+        });
+        
+        if (session) {
+          sessionInfo = {
+            deviceInfo: session.deviceInfo,
+            lastActivity: session.lastActivity
+          };
+          
+          // Deactivate the session
+          session.isActive = false;
+          await session.save();
+          
+          console.log(`Session deactivated for user ${decoded.userId}`);
+        } else {
+          // Deactivate any sessions that might exist with this token
+          const result = await Session.updateMany(
+            { 
+              userId: decoded.userId,
+              token,
+              isActive: true
+            },
+            { 
+              isActive: false
+            }
+          );
+          
+          console.log(`Deactivated ${result.modifiedCount} sessions for user ${decoded.userId}`);
+        }
       } catch (tokenError) {
         console.error('Token verification error during logout:', tokenError);
       }
@@ -442,14 +505,22 @@ const logoutUser = asyncHandler(async (req, res) => {
       });
     }
 
+    // Prepare response message
+    let message = 'Logged out successfully';
+    if (sessionInfo) {
+      const deviceType = sessionInfo.deviceInfo.includes('Mobile') ? 'mobile device' : 'computer';
+      const lastActive = new Date(sessionInfo.lastActivity).toLocaleString();
+      message = `Logged out successfully from your ${deviceType}. Last activity: ${lastActive}`;
+    }
+
     res.status(200).json({ 
-      message: 'Logged out successfully',
+      message,
       success: true 
     });
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500);
-    throw new Error('Error during logout');
+    throw new Error('Error during logout. Please try again.');
   }
 });
 
@@ -554,8 +625,23 @@ const forceLogoutOtherDevices = asyncHandler(async (req, res) => {
     
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    // Find active sessions for this user
+    const activeSessions = await Session.find({
+      userId: decoded.userId,
+      token: { $ne: token },
+      isActive: true
+    });
+    
+    // Get information about the sessions being logged out
+    const sessionCount = activeSessions.length;
+    const deviceInfo = activeSessions.map(session => {
+      const deviceType = session.deviceInfo.includes('Mobile') ? 'mobile device' : 'computer';
+      const lastActive = new Date(session.lastActivity).toLocaleString();
+      return { deviceType, lastActive };
+    });
+    
     // Keep only the current session active
-    await Session.updateMany(
+    const result = await Session.updateMany(
       { 
         userId: decoded.userId,
         token: { $ne: token },
@@ -566,14 +652,33 @@ const forceLogoutOtherDevices = asyncHandler(async (req, res) => {
       }
     );
     
+    // Log the action
+    console.log(`User ${decoded.userId} forced logout from ${result.modifiedCount} other devices`);
+    
+    // Prepare response message
+    let message = 'No other active sessions found';
+    if (sessionCount > 0) {
+      message = `Successfully logged out from ${sessionCount} other device${sessionCount !== 1 ? 's' : ''}`;
+      
+      // Add details if there are sessions
+      if (deviceInfo.length > 0) {
+        const deviceDetails = deviceInfo.map(device => 
+          `${device.deviceType} (last active: ${device.lastActive})`
+        ).join(', ');
+        
+        message += `. Devices: ${deviceDetails}`;
+      }
+    }
+    
     res.status(200).json({
       success: true,
-      message: 'Logged out from all other devices'
+      message,
+      sessionsTerminated: sessionCount
     });
   } catch (error) {
     console.error('Force logout error:', error);
     res.status(500);
-    throw new Error('Error during force logout');
+    throw new Error('Error during force logout. Please try again.');
   }
 });
 
