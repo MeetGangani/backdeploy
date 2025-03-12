@@ -445,8 +445,8 @@ const createExam = asyncHandler(async (req, res) => {
       }))
     };
 
-    // Encrypt the exam data
-    const encryptedData = JSON.stringify(examData);
+    // Properly encrypt the exam data using encryptFile function
+    const encryptedData = encryptFile(examData, encryptionKey);
 
     // Create a new exam document with all required fields
     const newExam = new FileRequest({
