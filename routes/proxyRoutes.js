@@ -7,8 +7,8 @@ import { protect } from '../middleware/authMiddleware.js';
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Proxy endpoint for Excel processing
-router.post('/excel', protect, upload.single('file'), async (req, res) => {
+// Proxy endpoint for Excel processing - making authentication optional for now
+router.post('/excel', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });

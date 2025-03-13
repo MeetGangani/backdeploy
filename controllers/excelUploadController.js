@@ -1,7 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import axios from 'axios';
 import FileRequest from '../models/fileRequestModel.js';
-import { generateEncryptionKey, encryptFile } from '../utils/encryption.js';
+import { generateEncryptionKey, encryptFile } from '../utils/encryptionUtils.js';
+import FormData from 'form-data';
 
 export const uploadExcel = asyncHandler(async (req, res) => {
   try {
