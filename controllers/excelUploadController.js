@@ -1,9 +1,9 @@
-const asyncHandler = require('express-async-handler');
-const axios = require('axios');
-const FileRequest = require('../models/fileRequestModel');
-const { generateEncryptionKey, encryptFile } = require('../utils/encryption');
+import asyncHandler from 'express-async-handler';
+import axios from 'axios';
+import FileRequest from '../models/fileRequestModel.js';
+import { generateEncryptionKey, encryptFile } from '../utils/encryption.js';
 
-const uploadExcel = asyncHandler(async (req, res) => {
+export const uploadExcel = asyncHandler(async (req, res) => {
   try {
     // 1. Validate request
     if (!req.file || !req.body.examName || !req.body.description || !req.body.examDuration) {
@@ -61,8 +61,4 @@ const uploadExcel = asyncHandler(async (req, res) => {
       error: error.response?.data?.error || 'Failed to process Excel file'
     });
   }
-});
-
-module.exports = {
-  uploadExcel
-}; 
+}); 

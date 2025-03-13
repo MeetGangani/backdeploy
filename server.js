@@ -10,6 +10,7 @@ import fileUploadRoutes from './routes/fileUploadRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import examRoutes from './routes/examRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
 import passport from 'passport';
 import session from 'express-session';
 import User from './models/userModel.js';
@@ -143,6 +144,7 @@ const startServer = async () => {
     app.use('/api/exams', examRoutes);
     app.use('/api/contact', contactRoutes);
     app.use('/api/proxy', proxyRoutes);
+    app.use('/api', uploadRoutes);
 
     app.get('/', (req, res) => res.json({ message: 'API is running' }));
 
