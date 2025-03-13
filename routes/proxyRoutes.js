@@ -21,7 +21,7 @@ router.post('/excel', protect, upload.single('file'), async (req, res) => {
     });
 
     const response = await axios.post(
-      'https://wandering-resonance-9549.ploomber.app/api/process-excel',
+      'https://silent-unit-5477.ploomber.app/api/process-excel',
       formData,
       {
         headers: {
