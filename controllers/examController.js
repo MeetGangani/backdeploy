@@ -199,8 +199,20 @@ const submitExam = asyncHandler(async (req, res) => {
       throw new Error('Exam not found');
     }
 
+    // Get encrypted data from IPFS
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
-    const decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
+    
+    // Log encryption key for debugging
+    logger.info('Attempting decryption with key:', { key: exam.encryptionKey });
+    
+    // Decrypt the exam data
+    let decryptedData;
+    try {
+      decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
+    } catch (decryptError) {
+      logger.error('Decryption failed:', decryptError);
+      throw new Error('Failed to decrypt exam data');
+    }
 
     if (!decryptedData || !decryptedData.questions) {
       throw new Error('Invalid exam data structure');
