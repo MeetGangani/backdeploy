@@ -540,7 +540,7 @@ const createExam = asyncHandler(async (req, res) => {
       passingPercentage: passingPercentage || 60,
       totalQuestions: questions.length,
       encryptedData,
-      ipfsEncryptionKey: encryptionKey,
+      encryptionKey: encryptionKey,
       institute: req.user._id,
       submittedBy: req.user._id,
       status: 'pending',
