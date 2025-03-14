@@ -23,4 +23,4 @@ export const uploadToCloudinary = async (buffer) => {
     console.error('Error uploading to Cloudinary:', error);
     throw new Error('Failed to upload image to Cloudinary');
   }
-}; 
+};  
