@@ -467,27 +467,71 @@ const createExam = asyncHandler(async (req, res) => {
       });
     }
 
+    // Validate each question
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.questionText && !q.questionImage) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have either text or an image`
+        });
+      }
+
+      if (!Array.isArray(q.options) || q.options.length < 2) {
+        return res.status(400).json({
+          success: false,
+          error: `Question ${i + 1} must have at least 2 options`
+        });
+      }
+
+      // Validate options
+      for (let j = 0; j < q.options.length; j++) {
+        const opt = q.options[j];
+        if (!opt.text && !opt.image) {
+          return res.status(400).json({
+            success: false,
+            error: `Option ${j + 1} in question ${i + 1} must have either text or an image`
+          });
+        }
+      }
+
+      // Validate correct answer
+      if (q.questionType === 'multiple') {
+        if (!Array.isArray(q.correctAnswer) || q.correctAnswer.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: `Question ${i + 1} (multiple choice) must have at least one correct answer`
+          });
+        }
+      } else {
+        if (typeof q.correctAnswer !== 'number' || q.correctAnswer < 1 || q.correctAnswer > q.options.length) {
+          return res.status(400).json({
+            success: false,
+            error: `Question ${i + 1} (single choice) must have a valid correct answer`
+          });
+        }
+      }
+    }
+
     // Generate encryption key and encrypt the exam data
     const encryptionKey = generateEncryptionKey();
     const examData = {
       examName,
       description,
       subject,
-      questions: questions.map((q, index) => ({
-        question: q.questionText || `Question ${index + 1}`,
-        questionImage: q.questionImage || null,
-        options: q.options.map(opt => ({
-          text: opt.text || '',
-          image: opt.image || null
-        })),
-        correctAnswer: q.questionType === 'single' ? q.correctOption + 1 : q.correctOptions[0] + 1 // Convert to 1-based index
+      questions: questions.map(q => ({
+        question: q.questionText,
+        questionImage: q.questionImage,
+        options: q.options,
+        allowMultiple: q.questionType === 'multiple',
+        correctAnswer: q.correctAnswer
       }))
     };
 
-    // Properly encrypt the exam data using encryptFile function
+    // Encrypt the exam data
     const encryptedData = encryptFile(examData, encryptionKey);
 
-    // Create a new exam document with all required fields
+    // Create a new exam document
     const newExam = new FileRequest({
       examName,
       description: description || examName,
@@ -495,21 +539,12 @@ const createExam = asyncHandler(async (req, res) => {
       timeLimit: timeLimit || 60,
       passingPercentage: passingPercentage || 60,
       totalQuestions: questions.length,
-      questions: questions.map((q, index) => ({
-        question: q.questionText || `Question ${index + 1}`,
-        questionImage: q.questionImage || null,
-        options: q.options.map(opt => ({
-          text: opt.text || '',
-          image: opt.image || null
-        })),
-        correctAnswer: q.questionType === 'single' ? q.correctOption + 1 : q.correctOptions[0] + 1 // Convert to 1-based index
-      })),
       encryptedData,
-      encryptionKey,
+      ipfsEncryptionKey: encryptionKey,
       institute: req.user._id,
       submittedBy: req.user._id,
-      status: 'pending', // Changed from 'approved' to 'pending' to require admin approval
-      examMode: false // Default to inactive
+      status: 'pending',
+      examMode: false
     });
     
     // Save the exam
@@ -517,7 +552,7 @@ const createExam = asyncHandler(async (req, res) => {
     
     return res.status(201).json({
       success: true,
-      message: 'Exam submitted successfully and is pending admin approval',
+      message: 'Exam created successfully and is pending admin approval',
       examId: savedExam._id
     });
   } catch (error) {
