@@ -216,18 +216,44 @@ const submitExam = asyncHandler(async (req, res) => {
 
     Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
       const question = decryptedData.questions[questionIndex];
-      const submittedNum = Number(submittedAnswer);
-      const correctNum = Number(question.correctAnswer) - 1;
+      
+      if (question.allowMultiple) {
+        // For multiple choice questions
+        const submittedAnswers = submittedAnswer.map(ans => Number(ans)); // Convert to array of numbers
+        const correctAnswers = Array.isArray(question.correctAnswer) 
+          ? question.correctAnswer.map(ans => Number(ans))
+          : [Number(question.correctAnswer)];
 
-      logger.info('Checking answer:', {
-        questionIndex,
-        submittedAnswer: submittedNum,
-        correctAnswer: correctNum,
-        matches: submittedNum === correctNum
-      });
+        // Check if arrays have the same values (order doesn't matter)
+        const isCorrect = submittedAnswers.length === correctAnswers.length &&
+          submittedAnswers.every(ans => correctAnswers.includes(ans)) &&
+          correctAnswers.every(ans => submittedAnswers.includes(ans));
 
-      if (submittedNum === correctNum) {
-        correctCount++;
+        logger.info('Checking multiple choice answer:', {
+          questionIndex,
+          submittedAnswers,
+          correctAnswers,
+          isCorrect
+        });
+
+        if (isCorrect) {
+          correctCount++;
+        }
+      } else {
+        // For single choice questions
+        const submittedNum = Number(submittedAnswer);
+        const correctNum = Number(question.correctAnswer) - 1;
+
+        logger.info('Checking single choice answer:', {
+          questionIndex,
+          submittedAnswer: submittedNum,
+          correctAnswer: correctNum,
+          matches: submittedNum === correctNum
+        });
+
+        if (submittedNum === correctNum) {
+          correctCount++;
+        }
       }
     });
 
@@ -248,9 +274,8 @@ const submitExam = asyncHandler(async (req, res) => {
       totalQuestions,
       submittedAt: examResponse.submittedAt
     });
-
   } catch (error) {
-    logger.error('Submit exam error:', error);
+    logger.error('Error submitting exam:', error);
     res.status(500);
     throw new Error('Failed to submit exam');
   }
