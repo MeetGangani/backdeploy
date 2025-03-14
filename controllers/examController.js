@@ -200,7 +200,7 @@ const submitExam = asyncHandler(async (req, res) => {
     }
 
     const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
-    const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+    const decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
 
     if (!decryptedData || !decryptedData.questions) {
       throw new Error('Invalid exam data structure');
