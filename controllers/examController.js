@@ -115,7 +115,31 @@ const startExam = asyncHandler(async (req, res) => {
         throw new Error('Invalid data format from IPFS');
       }
 
-      const decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
+      // Log encryption key for debugging
+      logger.info('Attempting to decrypt exam data with key:', { 
+        keyLength: exam.encryptionKey ? exam.encryptionKey.length : 0,
+        ipfsHash: ipfsHash
+      });
+      
+      let decryptedData;
+      try {
+        decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
+      } catch (decryptError) {
+        logger.error('Decryption failed in startExam:', decryptError);
+        
+        // Try with ipfsEncryptionKey as fallback (for backward compatibility)
+        if (exam.ipfsEncryptionKey) {
+          logger.info('Attempting fallback decryption with ipfsEncryptionKey');
+          try {
+            decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+          } catch (fallbackError) {
+            logger.error('Fallback decryption also failed:', fallbackError);
+            throw new Error('Failed to decrypt exam data: ' + decryptError.message);
+          }
+        } else {
+          throw new Error('Failed to decrypt exam data: ' + decryptError.message);
+        }
+      }
       
       if (!decryptedData || !decryptedData.questions) {
         logger.error('Invalid decrypted data structure');
@@ -664,6 +688,80 @@ const uploadExamImages = async (req, res) => {
   }
 };
 
+// @desc    Check and fix exam encryption keys
+// @route   GET /api/exams/fix-keys/:id
+// @access  Admin Only
+const fixExamEncryptionKeys = asyncHandler(async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // If ID is provided, fix a specific exam
+    if (id && id !== 'all') {
+      const exam = await FileRequest.findById(id);
+      
+      if (!exam) {
+        return res.status(404).json({
+          success: false,
+          message: 'Exam not found'
+        });
+      }
+      
+      // Check if encryptionKey is missing but ipfsEncryptionKey exists
+      if (!exam.encryptionKey && exam.ipfsEncryptionKey) {
+        exam.encryptionKey = exam.ipfsEncryptionKey;
+        await exam.save();
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Exam encryption key fixed',
+          examId: exam._id
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Exam encryption key is already set',
+        examId: exam._id
+      });
+    }
+    
+    // Fix all exams with missing encryption keys
+    const examsToFix = await FileRequest.find({
+      encryptionKey: { $exists: false },
+      ipfsEncryptionKey: { $exists: true }
+    });
+    
+    if (examsToFix.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No exams need fixing'
+      });
+    }
+    
+    // Update all exams
+    const updatePromises = examsToFix.map(async (exam) => {
+      exam.encryptionKey = exam.ipfsEncryptionKey;
+      return exam.save();
+    });
+    
+    await Promise.all(updatePromises);
+    
+    return res.status(200).json({
+      success: true,
+      message: `Fixed ${examsToFix.length} exams`,
+      fixedCount: examsToFix.length
+    });
+    
+  } catch (error) {
+    logger.error('Error fixing exam keys:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fix exam keys',
+      error: error.message
+    });
+  }
+});
+
 export {
   getAvailableExams,
   checkExamMode,
@@ -673,5 +771,6 @@ export {
   getMyResults,
   getExamResults,
   createExam,
-  uploadExamImages
+  uploadExamImages,
+  fixExamEncryptionKeys
 };

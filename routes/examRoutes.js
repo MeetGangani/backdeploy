@@ -9,9 +9,10 @@ import {
   getExamResults,
   checkExamMode,
   createExam,
-  uploadExamImages
+  uploadExamImages,
+  fixExamEncryptionKeys
 } from '../controllers/examController.js';
-import { protect, instituteOnly } from '../middleware/authMiddleware.js';
+import { protect, instituteOnly, adminOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
 import axios from 'axios';
 import FormData from 'form-data';
@@ -171,5 +172,8 @@ router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => 
     });
   }
 });
+
+// Admin routes
+router.get('/fix-keys/:id', protect, adminOnly, fixExamEncryptionKeys);
 
 export default router; 

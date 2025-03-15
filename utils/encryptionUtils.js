@@ -112,17 +112,42 @@ const encryptForIPFS = (data, key) => {
 // Decrypt from IPFS
 const decryptFromIPFS = (encryptedObject, key) => {
   try {
+    console.log('Starting IPFS decryption with key length:', key ? key.length : 0);
+    
+    if (!key) {
+      throw new Error('Encryption key is missing or invalid');
+    }
+    
+    if (!encryptedObject || !encryptedObject.iv || !encryptedObject.encryptedData) {
+      throw new Error('Invalid encrypted object format');
+    }
+    
     const keyBuffer = Buffer.from(key, 'hex');
     const iv = Buffer.from(encryptedObject.iv, 'base64');
+    
+    // Validate key and IV
+    if (keyBuffer.length !== 32) {
+      throw new Error(`Invalid key length: ${keyBuffer.length}, expected 32`);
+    }
+    
+    if (iv.length !== 16) {
+      throw new Error(`Invalid IV length: ${iv.length}, expected 16`);
+    }
     
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
     let decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
     decrypted += decipher.final('utf8');
     
-    return JSON.parse(decrypted);
+    try {
+      return JSON.parse(decrypted);
+    } catch (parseError) {
+      console.error('Failed to parse decrypted data as JSON:', parseError);
+      console.log('Decrypted data preview:', decrypted.substring(0, 100) + '...');
+      throw new Error('Failed to parse decrypted data as JSON');
+    }
   } catch (error) {
     console.error('IPFS decryption error:', error);
-    throw new Error('Failed to decrypt IPFS data');
+    throw error;
   }
 };
 
