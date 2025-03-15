@@ -464,9 +464,33 @@ const getExamResults = asyncHandler(async (req, res) => {
     const results = await ExamResponse.find({ exam: examId })
       .populate('student', 'name email')
       .sort('-submittedAt')
-      .select('score correctAnswers totalQuestions submittedAt');
+      .select('score correctAnswers totalQuestions submittedAt startTime timeLimit');
 
-    res.json(results);
+    // Calculate time taken for each result
+    const formattedResults = results.map(result => {
+      // Calculate time taken in seconds
+      let timeTaken = 0;
+      
+      if (result.submittedAt && result.startTime) {
+        // Calculate the difference in seconds
+        const submittedTime = new Date(result.submittedAt).getTime();
+        const startTime = new Date(result.startTime).getTime();
+        timeTaken = Math.floor((submittedTime - startTime) / 1000);
+        
+        // If time taken is negative or exceeds the time limit, use the time limit
+        if (timeTaken < 0 || (result.timeLimit && timeTaken > result.timeLimit * 60)) {
+          timeTaken = result.timeLimit ? result.timeLimit * 60 : 0;
+        }
+      }
+      
+      // Convert to plain object and add timeTaken
+      const resultObj = result.toObject();
+      resultObj.timeTaken = timeTaken;
+      
+      return resultObj;
+    });
+
+    res.json(formattedResults);
   } catch (error) {
     logger.error('Get exam results error:', error);
     res.status(500);
