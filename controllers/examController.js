@@ -108,20 +108,17 @@ const startExam = asyncHandler(async (req, res) => {
     }
 
     try {
-      const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`);
+      // Get encrypted data from IPFS
+      const response = await axios.get(`https://gateway.pinata.cloud/ipfs/${exam.ipfsHash}`);
       
-      if (!response.data || !response.data.iv || !response.data.encryptedData) {
-        logger.error('Invalid IPFS data format:', response.data);
-        throw new Error('Invalid data format from IPFS');
-      }
-
       // Log encryption keys for debugging
-      logger.info('Attempting to decrypt exam data for start:', { 
+      logger.info('Attempting to decrypt exam data:', { 
         hasEncryptionKey: !!exam.encryptionKey,
         hasIpfsEncryptionKey: !!exam.ipfsEncryptionKey,
-        ipfsHash: ipfsHash
+        ipfsHash: exam.ipfsHash
       });
       
+      // Decrypt the exam data
       let decryptedData;
       let decryptionSuccessful = false;
       
@@ -222,7 +219,7 @@ const startExam = asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error('Exam preparation error:', error);
     res.status(500);
-    throw new Error('Failed to prepare exam');
+    throw new Error('Failed to prepare exam: ' + error.message);
   }
 });
 
@@ -318,12 +315,22 @@ const submitExam = asyncHandler(async (req, res) => {
       totalQuestions: totalQuestions
     });
 
+    // Process and validate answers
+    const processedAnswers = {};
+    
     Object.entries(answers).forEach(([questionIndex, submittedAnswer]) => {
       const question = decryptedData.questions[questionIndex];
       
+      // Store the answer in the processed answers object
+      // Keep arrays as arrays and numbers as numbers
+      processedAnswers[questionIndex] = submittedAnswer;
+      
       if (question.allowMultiple) {
         // For multiple choice questions
-        const submittedAnswers = submittedAnswer.map(ans => Number(ans)); // Convert to array of numbers
+        const submittedAnswers = Array.isArray(submittedAnswer) 
+          ? submittedAnswer.map(ans => Number(ans))
+          : [Number(submittedAnswer)]; // Convert to array if not already
+          
         const correctAnswers = Array.isArray(question.correctAnswer) 
           ? question.correctAnswer.map(ans => Number(ans))
           : [Number(question.correctAnswer)];
@@ -363,7 +370,8 @@ const submitExam = asyncHandler(async (req, res) => {
 
     const score = Number(((correctCount / totalQuestions) * 100).toFixed(2));
 
-    examResponse.answers = answers;
+    // Update the exam response with the processed answers
+    examResponse.answers = processedAnswers;
     examResponse.score = score;
     examResponse.correctAnswers = correctCount;
     examResponse.totalQuestions = totalQuestions;
@@ -371,7 +379,20 @@ const submitExam = asyncHandler(async (req, res) => {
     examResponse.status = 'completed';
     examResponse.resultsAvailable = false;
 
-    await examResponse.save();
+    try {
+      await examResponse.save();
+      logger.info('Exam response saved successfully:', {
+        examId,
+        studentId: req.user._id,
+        score,
+        correctAnswers: correctCount,
+        totalQuestions
+      });
+    } catch (saveError) {
+      logger.error('Error saving exam response:', saveError);
+      res.status(500);
+      throw new Error('Failed to save exam response: ' + saveError.message);
+    }
 
     res.json({
       message: 'Exam submitted successfully. Results will be available once released by the institute.',

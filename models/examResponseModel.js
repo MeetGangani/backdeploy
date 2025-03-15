@@ -13,7 +13,7 @@ const examResponseSchema = new mongoose.Schema({
   },
   answers: {
     type: Map,
-    of: Number,
+    of: mongoose.Schema.Types.Mixed,
     required: true
   },
   
@@ -41,6 +41,14 @@ const examResponseSchema = new mongoose.Schema({
     type: String,
     enum: ['in-progress', 'completed', 'timed-out'],
     default: 'in-progress'
+  },
+  resultsAvailable: {
+    type: Boolean,
+    default: false
+  },
+  timeLimit: {
+    type: Number,
+    required: false
   }
 }, {
   timestamps: true
