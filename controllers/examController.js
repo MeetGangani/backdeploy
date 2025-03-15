@@ -103,7 +103,8 @@ const startExam = asyncHandler(async (req, res) => {
         totalQuestions: exam.totalQuestions,
         status: 'in-progress',
         resultsAvailable: false,
-        timeLimit: exam.timeLimit
+        timeLimit: exam.timeLimit,
+        startTime: new Date() // Set the start time when creating the exam response
       });
     }
 
@@ -121,35 +122,45 @@ const startExam = asyncHandler(async (req, res) => {
       // Decrypt the exam data
       let decryptedData;
       let decryptionSuccessful = false;
+      let successfulKey = null;
       
-      // Try with encryptionKey first
-      if (exam.encryptionKey) {
+      // Try with ipfsEncryptionKey first since it seems to be working in the logs
+      if (exam.ipfsEncryptionKey) {
+        try {
+          logger.info('Attempting decryption with ipfsEncryptionKey:', { keyLength: exam.ipfsEncryptionKey.length });
+          decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+          decryptionSuccessful = true;
+          successfulKey = 'ipfsEncryptionKey';
+          logger.info('Decryption with ipfsEncryptionKey successful');
+        } catch (error) {
+          logger.error('Decryption with ipfsEncryptionKey failed:', error);
+        }
+      }
+      
+      // If ipfsEncryptionKey failed or doesn't exist, try with encryptionKey
+      if (!decryptionSuccessful && exam.encryptionKey) {
         try {
           logger.info('Attempting decryption with encryptionKey:', { keyLength: exam.encryptionKey.length });
           decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
           decryptionSuccessful = true;
+          successfulKey = 'encryptionKey';
           logger.info('Decryption with encryptionKey successful');
         } catch (error) {
           logger.error('Decryption with encryptionKey failed:', error);
         }
       }
       
-      // If encryptionKey failed or doesn't exist, try with ipfsEncryptionKey
-      if (!decryptionSuccessful && exam.ipfsEncryptionKey) {
-        try {
-          logger.info('Attempting decryption with ipfsEncryptionKey:', { keyLength: exam.ipfsEncryptionKey.length });
-          decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
-          decryptionSuccessful = true;
-          logger.info('Decryption with ipfsEncryptionKey successful');
-          
-          // If ipfsEncryptionKey worked but encryptionKey didn't, sync the keys
-          if (!exam.encryptionKey) {
-            logger.info('Syncing ipfsEncryptionKey to encryptionKey');
-            exam.encryptionKey = exam.ipfsEncryptionKey;
-            await exam.save();
-          }
-        } catch (error) {
-          logger.error('Decryption with ipfsEncryptionKey also failed:', error);
+      // If decryption was successful, sync the keys
+      if (decryptionSuccessful && successfulKey) {
+        // Sync the keys if they're different
+        if (successfulKey === 'ipfsEncryptionKey' && exam.encryptionKey !== exam.ipfsEncryptionKey) {
+          logger.info('Syncing ipfsEncryptionKey to encryptionKey');
+          exam.encryptionKey = exam.ipfsEncryptionKey;
+          await exam.save();
+        } else if (successfulKey === 'encryptionKey' && exam.encryptionKey !== exam.ipfsEncryptionKey) {
+          logger.info('Syncing encryptionKey to ipfsEncryptionKey');
+          exam.ipfsEncryptionKey = exam.encryptionKey;
+          await exam.save();
         }
       }
       
@@ -262,35 +273,45 @@ const submitExam = asyncHandler(async (req, res) => {
     // Decrypt the exam data
     let decryptedData;
     let decryptionSuccessful = false;
+    let successfulKey = null;
     
-    // Try with encryptionKey first
-    if (exam.encryptionKey) {
+    // Try with ipfsEncryptionKey first since it seems to be working in the logs
+    if (exam.ipfsEncryptionKey) {
+      try {
+        logger.info('Attempting decryption with ipfsEncryptionKey:', { keyLength: exam.ipfsEncryptionKey.length });
+        decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+        decryptionSuccessful = true;
+        successfulKey = 'ipfsEncryptionKey';
+        logger.info('Decryption with ipfsEncryptionKey successful');
+      } catch (error) {
+        logger.error('Decryption with ipfsEncryptionKey failed:', error);
+      }
+    }
+    
+    // If ipfsEncryptionKey failed or doesn't exist, try with encryptionKey
+    if (!decryptionSuccessful && exam.encryptionKey) {
       try {
         logger.info('Attempting decryption with encryptionKey:', { keyLength: exam.encryptionKey.length });
         decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
         decryptionSuccessful = true;
+        successfulKey = 'encryptionKey';
         logger.info('Decryption with encryptionKey successful');
       } catch (error) {
         logger.error('Decryption with encryptionKey failed:', error);
       }
     }
     
-    // If encryptionKey failed or doesn't exist, try with ipfsEncryptionKey
-    if (!decryptionSuccessful && exam.ipfsEncryptionKey) {
-      try {
-        logger.info('Attempting decryption with ipfsEncryptionKey:', { keyLength: exam.ipfsEncryptionKey.length });
-        decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
-        decryptionSuccessful = true;
-        logger.info('Decryption with ipfsEncryptionKey successful');
-        
-        // If ipfsEncryptionKey worked but encryptionKey didn't, sync the keys
-        if (!exam.encryptionKey) {
-          logger.info('Syncing ipfsEncryptionKey to encryptionKey');
-          exam.encryptionKey = exam.ipfsEncryptionKey;
-          await exam.save();
-        }
-      } catch (error) {
-        logger.error('Decryption with ipfsEncryptionKey also failed:', error);
+    // If decryption was successful, sync the keys
+    if (decryptionSuccessful && successfulKey) {
+      // Sync the keys if they're different
+      if (successfulKey === 'ipfsEncryptionKey' && exam.encryptionKey !== exam.ipfsEncryptionKey) {
+        logger.info('Syncing ipfsEncryptionKey to encryptionKey');
+        exam.encryptionKey = exam.ipfsEncryptionKey;
+        await exam.save();
+      } else if (successfulKey === 'encryptionKey' && exam.encryptionKey !== exam.ipfsEncryptionKey) {
+        logger.info('Syncing encryptionKey to ipfsEncryptionKey');
+        exam.ipfsEncryptionKey = exam.encryptionKey;
+        await exam.save();
       }
     }
     
@@ -877,46 +898,55 @@ const fixEncryptionKeys = asyncHandler(async (req, res) => {
     
     let fixedCount = 0;
     let alreadyFixedCount = 0;
+    let errorCount = 0;
     
     // Process each exam
     for (const exam of exams) {
-      // Check if both keys exist
-      if (exam.encryptionKey && exam.ipfsEncryptionKey) {
-        // If both keys exist but are different, make them the same
-        if (exam.encryptionKey !== exam.ipfsEncryptionKey) {
-          logger.info(`Fixing mismatched keys for exam ${exam._id}`);
+      try {
+        // Check if both keys exist
+        if (exam.encryptionKey && exam.ipfsEncryptionKey) {
+          // If both keys exist but are different, sync them
+          // We'll prioritize ipfsEncryptionKey since that's the one that works in the logs
+          if (exam.encryptionKey !== exam.ipfsEncryptionKey) {
+            logger.info(`Fixing mismatched keys for exam ${exam._id}`);
+            exam.encryptionKey = exam.ipfsEncryptionKey;
+            await exam.save();
+            fixedCount++;
+          } else {
+            alreadyFixedCount++;
+          }
+        } 
+        // If only encryptionKey exists
+        else if (exam.encryptionKey && !exam.ipfsEncryptionKey) {
+          logger.info(`Copying encryptionKey to ipfsEncryptionKey for exam ${exam._id}`);
           exam.ipfsEncryptionKey = exam.encryptionKey;
           await exam.save();
           fixedCount++;
-        } else {
-          alreadyFixedCount++;
+        } 
+        // If only ipfsEncryptionKey exists
+        else if (!exam.encryptionKey && exam.ipfsEncryptionKey) {
+          logger.info(`Copying ipfsEncryptionKey to encryptionKey for exam ${exam._id}`);
+          exam.encryptionKey = exam.ipfsEncryptionKey;
+          await exam.save();
+          fixedCount++;
         }
-      } 
-      // If only encryptionKey exists
-      else if (exam.encryptionKey && !exam.ipfsEncryptionKey) {
-        logger.info(`Copying encryptionKey to ipfsEncryptionKey for exam ${exam._id}`);
-        exam.ipfsEncryptionKey = exam.encryptionKey;
-        await exam.save();
-        fixedCount++;
-      } 
-      // If only ipfsEncryptionKey exists
-      else if (!exam.encryptionKey && exam.ipfsEncryptionKey) {
-        logger.info(`Copying ipfsEncryptionKey to encryptionKey for exam ${exam._id}`);
-        exam.encryptionKey = exam.ipfsEncryptionKey;
-        await exam.save();
-        fixedCount++;
-      }
-      // If neither key exists, log an error
-      else {
-        logger.error(`Exam ${exam._id} has no encryption keys`);
+        // If neither key exists, log an error
+        else {
+          logger.error(`Exam ${exam._id} has no encryption keys`);
+          errorCount++;
+        }
+      } catch (examError) {
+        logger.error(`Error processing exam ${exam._id}:`, examError);
+        errorCount++;
       }
     }
     
     return res.status(200).json({
       success: true,
-      message: `Fixed ${fixedCount} exams, ${alreadyFixedCount} already fixed`,
+      message: `Fixed ${fixedCount} exams, ${alreadyFixedCount} already fixed, ${errorCount} errors`,
       fixedCount,
-      alreadyFixedCount
+      alreadyFixedCount,
+      errorCount
     });
   } catch (error) {
     logger.error('Error fixing encryption keys:', error);
