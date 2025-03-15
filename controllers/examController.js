@@ -115,7 +115,7 @@ const startExam = asyncHandler(async (req, res) => {
         throw new Error('Invalid data format from IPFS');
       }
 
-      const decryptedData = decryptFromIPFS(response.data, exam.ipfsEncryptionKey);
+      const decryptedData = decryptFromIPFS(response.data, exam.encryptionKey);
       
       if (!decryptedData || !decryptedData.questions) {
         logger.error('Invalid decrypted data structure');
@@ -128,7 +128,7 @@ const startExam = asyncHandler(async (req, res) => {
       }
 
       // Format questions for the frontend
-      const sanitizedQuestions = decryptedData.questions.map(q => {
+      const sanitizedQuestions = decryptedData.questions.map((q, index) => {
         // Process options to handle both text and images
         const processedOptions = q.options.map(opt => {
           if (typeof opt === 'string') {
@@ -143,10 +143,18 @@ const startExam = asyncHandler(async (req, res) => {
           return opt.text || '';
         });
         
+        // Log question type for debugging
+        logger.info(`Question ${index + 1} type:`, { 
+          allowMultiple: q.allowMultiple, 
+          correctAnswer: q.correctAnswer,
+          questionText: q.question.substring(0, 30) + '...'
+        });
+        
         return {
           text: q.question,
           questionImage: q.questionImage || null,
-          options: processedOptions
+          options: processedOptions,
+          allowMultiple: q.allowMultiple || false // Ensure allowMultiple is passed to frontend
         };
       });
 
@@ -527,6 +535,13 @@ const createExam = asyncHandler(async (req, res) => {
 
     // Generate encryption key and encrypt the exam data
     const encryptionKey = generateEncryptionKey();
+    
+    // Log the questions for debugging
+    logger.info(`Creating exam with ${questions.length} questions`);
+    questions.forEach((q, i) => {
+      logger.info(`Question ${i+1} type: ${q.questionType}, allowMultiple: ${q.questionType === 'multiple'}`);
+    });
+    
     const examData = {
       examName,
       description,
