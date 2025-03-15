@@ -10,7 +10,8 @@ import {
   checkExamMode,
   createExam,
   uploadExamImages,
-  fixExamEncryptionKeys
+  fixExamEncryptionKeys,
+  fixEncryptionKeys
 } from '../controllers/examController.js';
 import { protect, instituteOnly, adminOnly } from '../middleware/authMiddleware.js';
 import { updateExamMode } from '../controllers/fileUploadController.js';
@@ -175,5 +176,6 @@ router.post('/proxy/excel', protect, upload.single('file'), async (req, res) => 
 
 // Admin routes
 router.get('/fix-keys/:id', protect, adminOnly, fixExamEncryptionKeys);
+router.get('/fix-encryption-keys', protect, adminOnly, fixEncryptionKeys);
 
 export default router; 

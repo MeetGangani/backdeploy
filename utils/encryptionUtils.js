@@ -119,6 +119,7 @@ const decryptFromIPFS = (encryptedObject, key) => {
     }
     
     if (!encryptedObject || !encryptedObject.iv || !encryptedObject.encryptedData) {
+      console.error('Invalid encrypted object format:', encryptedObject);
       throw new Error('Invalid encrypted object format');
     }
     
@@ -127,17 +128,29 @@ const decryptFromIPFS = (encryptedObject, key) => {
     
     // Validate key and IV
     if (keyBuffer.length !== 32) {
+      console.error(`Invalid key length: ${keyBuffer.length}, expected 32`);
       throw new Error(`Invalid key length: ${keyBuffer.length}, expected 32`);
     }
     
     if (iv.length !== 16) {
+      console.error(`Invalid IV length: ${iv.length}, expected 16`);
       throw new Error(`Invalid IV length: ${iv.length}, expected 16`);
     }
     
+    console.log('Creating decipher with key and IV');
     const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
-    let decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
     
+    console.log('Decrypting data...');
+    let decrypted;
+    try {
+      decrypted = decipher.update(encryptedObject.encryptedData, 'base64', 'utf8');
+      decrypted += decipher.final('utf8');
+    } catch (cipherError) {
+      console.error('Cipher operation failed:', cipherError);
+      throw cipherError;
+    }
+    
+    console.log('Decryption successful, parsing JSON...');
     try {
       return JSON.parse(decrypted);
     } catch (parseError) {
